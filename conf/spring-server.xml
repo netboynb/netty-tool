@@ -10,9 +10,8 @@
 
 	<bean id="nettyServer" class="com.netboy.netty.server.NettyServer" >
 	    <property name="port" value="8080" />
-	    <property name="handler" ref="objectHandler" />
+	    <property name="handler" ref="serverHandler" />
 	</bean>
 
-    <bean id="serverHandler" class="com.netboy.netty.handler.ServerHandler" />
- 	<bean id="objectHandler" class="com.netboy.netty.handler.ServerObjectHandler" />
+    <bean id="serverHandler" class="com.netboy.netty.handler.RespServerHandler" />
 </beans>

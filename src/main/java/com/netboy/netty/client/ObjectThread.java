@@ -1,8 +1,10 @@
 package com.netboy.netty.client;
 
-import org.jboss.netty.channel.Channel;
+
+import io.netty.channel.Channel;
 
 import com.netboy.netty.common.People;
+import com.netboy.netty.common.ReqProto;
 
 /**
  * TODO
@@ -13,24 +15,24 @@ public class ObjectThread extends ClientThread {
 	public void run() {
 		while(true) {
 
-			Channel channel = nettyClient.getChannelFuture().getChannel();
+			Channel channel = (Channel) nettyClient.getChannelFuture();
 			System.out.println("填写信息，发送消息（Enter发送）:");
-			People people = getInfo();
-			channel.write(people);
+			ReqProto.Req req = getInfo();
+			channel.write(req);
 		}
 	}
-	public People getInfo() {
-		People manPeople = new People();
+	public ReqProto.Req getInfo() {
+		ReqProto.Req.Builder builder = ReqProto.Req.newBuilder();
 		System.out.println("name: ");
 		String name = scanner.next();
-	    manPeople.setName(name);
+		builder.setName(name);
 	    
 	    System.out.println("age: ");
 		String age = scanner.next();
-	    manPeople.setAge(age);
+		builder.setAge(Long.parseLong(age));
 	    System.out.println("address: ");
 		String address = scanner.next();
-	    manPeople.setAddress(address);
-	    return manPeople;
+	    builder.setAddress(address);
+	    return builder.build();
 	}
 }

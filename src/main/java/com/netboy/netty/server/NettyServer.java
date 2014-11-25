@@ -1,75 +1,82 @@
 package com.netboy.netty.server;
 
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerAdapter;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.protobuf.ProtobufDecoder;
+import io.netty.handler.codec.protobuf.ProtobufEncoder;
+import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
+import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
+import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 
 import java.net.InetSocketAddress;
-import java.util.concurrent.Executors;
 
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.SimpleChannelHandler;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.handler.codec.serialization.ClassResolvers;
-import org.jboss.netty.handler.codec.serialization.ObjectDecoder;
-import org.jboss.netty.handler.codec.serialization.ObjectEncoder;
+import com.netboy.netty.common.ReqProto;
 
 public class NettyServer {
 	private int port = 8080;
 	private ServerBootstrap bootstrap;
-	private SimpleChannelHandler handler;
-/**
- * 初始化服务器端
- */
-	public void init() {
-		bootstrap = new ServerBootstrap(
-				new NioServerSocketChannelFactory(
-						Executors.newCachedThreadPool(), //boss 监听请求，并分派给slave进行处理
-				        Executors.newCachedThreadPool()//slave 处理请求，将其丢到线程池中处理
-				                                 ) 
-				                         ); 
+	private ChannelHandlerAdapter handler;
 
-		bootstrap.setPipelineFactory(new ChannelPipelineFactory() {
-			public ChannelPipeline getPipeline() throws Exception {
-				
-				/*典型的过滤式处理*/
-				ChannelPipeline pipeline = Channels.pipeline();
-//				pipeline.addLast("encode", new StringEncoder());
-//				pipeline.addLast("decode", new StringDecoder());
-				/*添加自定义的handler，对请求进行处理*/
-				pipeline.addLast("encode", new ObjectEncoder());
-				pipeline.addLast("decode", new ObjectDecoder(ClassResolvers.cacheDisabled(this
-		                .getClass().getClassLoader())));
-				pipeline.addLast("handler", handler);
-				return pipeline;
-			}
-		});
-		
-		/*使用tcp长连接*/
-		bootstrap.setOption("child.tcpNoDelay", true);
-		bootstrap.setOption("child.keepAlive", true);
-		bootstrap.setOption("reuseAddress", true);
+	/**
+	 * 初始化服务器端
+	 */
+	public void init() throws Exception {
+		// 配置服务端的NIO线程组
+		EventLoopGroup bossGroup = new NioEventLoopGroup();
+		EventLoopGroup workerGroup = new NioEventLoopGroup();
+		try {
+			this.bootstrap = new ServerBootstrap();
+			bootstrap.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class)
+					.option(ChannelOption.SO_BACKLOG, 100).handler(new LoggingHandler(LogLevel.INFO))
+					.childHandler(new ChannelInitializer<SocketChannel>() {
+						@Override
+						public void initChannel(SocketChannel ch) {
+							 ch.pipeline().addLast(new ProtobufVarint32FrameDecoder());
+							ch.pipeline().addLast(new ProtobufDecoder(ReqProto.Req.getDefaultInstance()));
+							ch.pipeline().addLast(new ProtobufVarint32LengthFieldPrepender());
+							ch.pipeline().addLast(new ProtobufEncoder());
+							ch.pipeline().addLast(handler);
+						}
+					});
+
+			// 绑定端口，同步等待成功
+			ChannelFuture f = bootstrap.bind(port).sync();
+
+			// 等待服务端监听端口关闭
+			f.channel().closeFuture().sync();
+		} finally {
+			// 优雅退出，释放线程池资源
+			bossGroup.shutdownGracefully();
+			workerGroup.shutdownGracefully();
+		}
 	}
-/**
- * 绑定端口，启动netty服务
- */
+
+	/**
+	 * 绑定端口，启动netty服务
+	 */
 	public void start() {
 		bootstrap.bind(new InetSocketAddress(port));
 		System.out.println("服务器启动,端口:" + port);
 	}
-/**
- * 关闭netty，释放资源。	
- */
-	public void stop() {
-		bootstrap.releaseExternalResources();
-	}
 
+	public void stop(){
+		
+	}
 	public void setPort(int port) {
 		this.port = port;
 	}
-	public void setHandler(SimpleChannelHandler handler) {
+
+	public void setHandler(ChannelHandlerAdapter handler) {
 		this.handler = handler;
 	}
-
 
 }

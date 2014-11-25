@@ -7,14 +7,14 @@ public class ClientThread extends Thread {
 
 	protected Scanner scanner = new Scanner(System.in);
 
-	public void init() {
+	public void init() throws InterruptedException {
 		nettyClient.init();
 		nettyClient.start();
 	}
 
 	public void run() {
 		while(true) {
-			Channel channel = (Channel) nettyClient.getChannelFuture().getChannel();
+			Channel channel = (Channel) nettyClient.getChannelFuture();
 			System.out.println("发送消息（Enter发送）:");
 			Object msg = scanner.next();
 			if(msg.toString().equals("quit")) {
@@ -22,7 +22,7 @@ public class ClientThread extends Thread {
 				nettyClient.stop();
 				
 			}
-			((org.jboss.netty.channel.Channel) channel).write(msg);
+			//channel.write(msg);
 		}
 	}
 

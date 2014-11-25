@@ -12,9 +12,9 @@ import com.netboy.netty.server.NettyServer;
 public class RunServer {
 
 	public static void main(String[] args) {
-		
-    	String contextFile = "./conf/spring-server.xml";
-    	
+
+		String contextFile = "./conf/spring-server.xml";
+
 		ApplicationContext context = null;
 		try {
 			context = new FileSystemXmlApplicationContext(contextFile);
@@ -22,8 +22,8 @@ public class RunServer {
 			System.out.println("RunServer has some exception");
 			e.printStackTrace();
 		}
-		final NettyServer server =(NettyServer)context.getBean("nettyServer");
-		
+		final NettyServer server = (NettyServer) context.getBean("nettyServer");
+
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 
 			@Override
@@ -35,9 +35,13 @@ public class RunServer {
 				}
 			}
 
-		}  );
-		server.init();
-		server.start();
+		});
+		try {
+			server.init();
+			server.start();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
-
 }
