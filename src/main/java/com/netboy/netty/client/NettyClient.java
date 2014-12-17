@@ -13,13 +13,8 @@ import io.netty.handler.codec.protobuf.ProtobufDecoder;
 import io.netty.handler.codec.protobuf.ProtobufEncoder;
 import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
 import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
-import io.netty.handler.codec.serialization.ClassResolvers;
-import io.netty.handler.codec.serialization.ObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectEncoder;
 
-import java.net.InetSocketAddress;
-
-import com.netboy.netty.common.RespProto;
+import com.netboy.netty.solr.proto.RespSolrProto;
 
 public class NettyClient {
 	private int port = 8080;
@@ -33,7 +28,7 @@ public class NettyClient {
 	 * 
 	 * @throws InterruptedException
 	 */
-	public void init() throws InterruptedException {
+	public void start() throws InterruptedException {
 
 		EventLoopGroup group = new NioEventLoopGroup();
 		try {
@@ -43,7 +38,7 @@ public class NettyClient {
 						@Override
 						public void initChannel(SocketChannel ch) throws Exception {
 							ch.pipeline().addLast(new ProtobufVarint32FrameDecoder());
-							ch.pipeline().addLast(new ProtobufDecoder(RespProto.Resp.getDefaultInstance()));
+							ch.pipeline().addLast(new ProtobufDecoder(RespSolrProto.Resp.getDefaultInstance()));
 							ch.pipeline().addLast(new ProtobufVarint32LengthFieldPrepender());
 							ch.pipeline().addLast(new ProtobufEncoder());
 							ch.pipeline().addLast(handler);
@@ -63,13 +58,6 @@ public class NettyClient {
 
 	public ChannelFuture getChannelFuture() {
 		return channelFuture;
-	}
-
-	public void start() {
-		synchronized (channelFuture) {
-			channelFuture = clientBootstrap.connect(new InetSocketAddress(host, port));
-		}
-		System.out.println("连接远程服务器" + host + ":" + port + "端口成功，你现在可以开始发消息了。");
 	}
 
 	public void stop() {

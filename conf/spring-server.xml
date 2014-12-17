@@ -13,5 +13,6 @@
 	    <property name="handler" ref="serverHandler" />
 	</bean>
 
-    <bean id="serverHandler" class="com.netboy.netty.handler.RespServerHandler" />
+    <!-- <bean id="serverHandler" class="com.netboy.netty.demo.handler.RespServerHandler" /> -->
+    <bean id="serverHandler" class="com.netboy.netty.solr.handler.RespSolrHandler" />
 </beans>

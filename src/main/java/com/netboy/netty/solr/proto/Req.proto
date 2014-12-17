@@ -1,0 +1,13 @@
+package netty;  
+  
+option java_package = "com.netboy.netty.solr.proto";  
+option java_outer_classname = "ReqSolrProto";  
+option optimize_for = SPEED;
+
+message Req {
+	//for string, json format, like http params
+	required string params = 2;
+	//(xml, json, solr_javabin) fix by params rt (request type)
+	optional int32 streamsFormat = 3;
+	repeated bytes streams = 4;
+}

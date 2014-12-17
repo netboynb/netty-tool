@@ -1,4 +1,4 @@
-package com.netboy.netty.main;
+package com.netboy.netty.demo.main;
 
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.FileSystemXmlApplicationContext;
@@ -37,8 +37,9 @@ public class RunServer {
 
 		});
 		try {
-			server.init();
+			System.out.println("Server has bean started");
 			server.start();
+			
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

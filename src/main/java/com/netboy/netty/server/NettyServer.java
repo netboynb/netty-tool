@@ -13,13 +13,10 @@ import io.netty.handler.codec.protobuf.ProtobufDecoder;
 import io.netty.handler.codec.protobuf.ProtobufEncoder;
 import io.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder;
 import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
-import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 
-import java.net.InetSocketAddress;
-
-import com.netboy.netty.common.ReqProto;
+import com.netboy.netty.solr.proto.ReqSolrProto;
 
 public class NettyServer {
 	private int port = 8080;
@@ -29,7 +26,7 @@ public class NettyServer {
 	/**
 	 * 初始化服务器端
 	 */
-	public void init() throws Exception {
+	public void start() throws Exception {
 		// 配置服务端的NIO线程组
 		EventLoopGroup bossGroup = new NioEventLoopGroup();
 		EventLoopGroup workerGroup = new NioEventLoopGroup();
@@ -41,7 +38,7 @@ public class NettyServer {
 						@Override
 						public void initChannel(SocketChannel ch) {
 							 ch.pipeline().addLast(new ProtobufVarint32FrameDecoder());
-							ch.pipeline().addLast(new ProtobufDecoder(ReqProto.Req.getDefaultInstance()));
+							ch.pipeline().addLast(new ProtobufDecoder(ReqSolrProto.Req.getDefaultInstance()));
 							ch.pipeline().addLast(new ProtobufVarint32LengthFieldPrepender());
 							ch.pipeline().addLast(new ProtobufEncoder());
 							ch.pipeline().addLast(handler);
@@ -58,14 +55,6 @@ public class NettyServer {
 			bossGroup.shutdownGracefully();
 			workerGroup.shutdownGracefully();
 		}
-	}
-
-	/**
-	 * 绑定端口，启动netty服务
-	 */
-	public void start() {
-		bootstrap.bind(new InetSocketAddress(port));
-		System.out.println("服务器启动,端口:" + port);
 	}
 
 	public void stop(){

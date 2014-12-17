@@ -1,4 +1,4 @@
-package com.netboy.netty.handler;
+package com.netboy.netty.demo.handler;
 
 import com.netboy.netty.common.ReqProto;
 import com.netboy.netty.common.RespProto;
@@ -10,10 +10,10 @@ public class RespServerHandler extends ChannelHandlerAdapter {
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
 		ReqProto.Req req = (ReqProto.Req) msg;
-			System.out.println("Service accept client subscribe req -->");
-			System.out.println("    "+req.getName());
-			System.out.println("    "+req.getAge());
-			System.out.println("    "+req.getAddress());
+			System.out.println("Service accept client subscribe req");
+			System.out.println("name = "+req.getName());
+			System.out.println("age = "+req.getAge());
+			System.out.println("address = "+req.getAddress());
 			ctx.writeAndFlush(resp(req.getAge()));
 	}
 
