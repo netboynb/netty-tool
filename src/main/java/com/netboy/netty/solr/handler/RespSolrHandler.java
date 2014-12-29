@@ -1,21 +1,12 @@
 package com.netboy.netty.solr.handler;
 
+import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 
-import java.io.IOException;
-
-import org.apache.solr.common.params.ModifiableSolrParams;
-import org.apache.solr.common.util.NamedList;
-import org.apache.solr.request.LocalSolrQueryRequest;
-import org.apache.solr.response.BinaryResponseWriter;
-import org.apache.solr.response.SolrQueryResponse;
-
-import com.google.protobuf.ByteString;
-import com.netboy.netty.common.SolrByteArrayOutputStream;
-import com.netboy.netty.solr.proto.ReqSolrProto;
-import com.netboy.netty.solr.proto.RespSolrProto;
-import io.netty.channel.ChannelHandler.Sharable;
+import com.netboy.netty.solr.proto.SolrProtocol;
+import com.netboy.netty.solr.proto.SolrProtocol.SolrNettyRequest;
+import com.netboy.netty.solr.proto.SolrProtocol.SolrNettyResponse;
 /**
  * 
 *   
@@ -31,15 +22,15 @@ import io.netty.channel.ChannelHandler.Sharable;
 public class RespSolrHandler extends ChannelHandlerAdapter {
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-		ReqSolrProto.Req req = (ReqSolrProto.Req) msg;
+		SolrNettyRequest req = (SolrNettyRequest) msg;
 			System.out.println("Service accept client subscribe req");
 			System.out.println("solr query string  = "+req.getParams());
 			System.out.println("solr query format = "+req.getStreamsFormat());
 			ctx.writeAndFlush(resp(req.getStreamsFormat()));
 	}
 
-	private RespSolrProto.Resp resp(long age) {
-		RespSolrProto.Resp.Builder builder = RespSolrProto.Resp.newBuilder();
+	private SolrNettyResponse resp(long age) {
+		/*SolrProtocol.SolrNettyResponse.Builder builder = SolrProtocol.SolrNettyResponse.newBuilder();
 		builder.setErrorCode(0);
 		builder.setErrorStr("OK");
 		builder.setResponseFormat(3);
@@ -48,9 +39,11 @@ public class RespSolrHandler extends ChannelHandlerAdapter {
 		NamedList<Object> nameValuePairs = new NamedList<>();
 		nameValuePairs.add("fileld_1", "111");
 		nameValuePairs.add("fileld_2", "222");
+		nameValuePairs.add("now", System.currentTimeMillis());
 		solrQueryResponse.setAllValues(nameValuePairs);
 		builder.setResponse(respConvertByteStr(solrQueryResponse));
-		return builder.build();
+		return builder.build();*/
+		return null;
 	}
 
 	@Override
@@ -66,7 +59,7 @@ public class RespSolrHandler extends ChannelHandlerAdapter {
 	* @return ByteString 
 	* @throws
 	 */
-	private ByteString respConvertByteStr(SolrQueryResponse resp){
+	/*private ByteString respConvertByteStr(SolrQueryResponse resp){
 		SolrByteArrayOutputStream  out = new SolrByteArrayOutputStream(1024);
 		BinaryResponseWriter bwrt = new BinaryResponseWriter();
 		try {
@@ -79,5 +72,5 @@ public class RespSolrHandler extends ChannelHandlerAdapter {
 		}
 		return ByteString.copyFrom(out.getBuf(), 0, out.size());
 		
-	}
+	}*/
 }

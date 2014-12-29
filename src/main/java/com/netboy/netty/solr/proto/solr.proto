@@ -1,0 +1,22 @@
+package netty;
+option java_package = "com.netboy.netty.solr.proto";
+option java_outer_classname = "SolrProtocol";
+option optimize_for = SPEED;
+
+message SolrNettyRequest {
+	required int32 rid = 1;
+	//for string, json format, like http params
+	required bytes params = 2;
+	//(xml, json, solr_javabin) fix by params rt (request type)
+	optional int32 streamsFormat = 3;
+	repeated bytes streams = 4;
+}
+
+message SolrNettyResponse {
+	required int32 rid = 1;
+	//response format (xml, json, solr_javabin, csv ...)
+	optional int32 responseFormat = 2;
+	optional bytes response = 3;
+	optional int32 errorCode = 4;
+	optional string errorStr = 5;
+}

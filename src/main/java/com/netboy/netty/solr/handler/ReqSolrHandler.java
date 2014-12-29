@@ -1,6 +1,5 @@
 package com.netboy.netty.solr.handler;
 
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
@@ -11,9 +10,10 @@ import java.util.Map.Entry;
 
 import org.apache.solr.common.util.NamedList;
 
+import com.google.protobuf.ByteString;
 import com.netboy.netty.common.NettyUtils;
-import com.netboy.netty.solr.proto.ReqSolrProto;
-import com.netboy.netty.solr.proto.RespSolrProto;
+import com.netboy.netty.solr.proto.SolrProtocol.SolrNettyRequest;
+import com.netboy.netty.solr.proto.SolrProtocol.SolrNettyResponse;
 
 /**
  * 
@@ -21,7 +21,7 @@ import com.netboy.netty.solr.proto.RespSolrProto;
 * 项目名称：netty-tool  
 * 类名称：ReqSolrHandler  
 * 类描述：  用于序列化solr请求
-* 创建人：netboy  
+* 创建人：netboy
 * 创建时间：2014年11月27日 下午7:45:30  
 * @version
  */
@@ -36,16 +36,17 @@ public class ReqSolrHandler extends ChannelHandlerAdapter{
 	}
 
 
-	private ReqSolrProto.Req subReq(int i) {
-		ReqSolrProto.Req.Builder builder = ReqSolrProto.Req.newBuilder();
-		builder.setParams("*:*&indent=on&rows=10");
+	private SolrNettyRequest subReq(int i) {
+		SolrNettyRequest.Builder builder = SolrNettyRequest.newBuilder();
+		String req = "*:*&indent=on&rows=10";
+		//builder.setParams(new LiteralByteString(req.getBytes()));
 		builder.setStreamsFormat(3);
 		return builder.build();
 	}
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-		RespSolrProto.Resp resp = (RespSolrProto.Resp)msg;
+		SolrNettyResponse resp = (SolrNettyResponse)msg;
 		System.out.println("Receive server response");
 		
 		System.out.println("Response Format = "+resp.getResponseFormat());

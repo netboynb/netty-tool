@@ -16,7 +16,7 @@ import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 
-import com.netboy.netty.solr.proto.ReqSolrProto;
+import com.netboy.netty.solr.proto.SolrProtocol.SolrNettyRequest;
 
 public class NettyServer {
 	private int port = 8080;
@@ -38,7 +38,7 @@ public class NettyServer {
 						@Override
 						public void initChannel(SocketChannel ch) {
 							 ch.pipeline().addLast(new ProtobufVarint32FrameDecoder());
-							ch.pipeline().addLast(new ProtobufDecoder(ReqSolrProto.Req.getDefaultInstance()));
+							ch.pipeline().addLast(new ProtobufDecoder(SolrNettyRequest.getDefaultInstance()));
 							ch.pipeline().addLast(new ProtobufVarint32LengthFieldPrepender());
 							ch.pipeline().addLast(new ProtobufEncoder());
 							ch.pipeline().addLast(handler);
