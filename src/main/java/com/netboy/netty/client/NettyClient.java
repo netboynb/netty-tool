@@ -17,7 +17,7 @@ import io.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender;
 import com.netboy.netty.solr.proto.SolrProtocol.SolrNettyResponse;
 
 public class NettyClient {
-	private int port = 8080;
+	private int port = 8981;
 	private String host = "127.0.0.1";
 	private Bootstrap clientBootstrap;
 	private ChannelHandlerAdapter handler;

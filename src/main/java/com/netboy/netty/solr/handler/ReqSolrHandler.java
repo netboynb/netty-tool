@@ -4,10 +4,13 @@ import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.solr.common.params.ModifiableSolrParams;
+import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.NamedList;
 
 import com.google.protobuf.ByteString;
@@ -38,9 +41,17 @@ public class ReqSolrHandler extends ChannelHandlerAdapter{
 
 	private SolrNettyRequest subReq(int i) {
 		SolrNettyRequest.Builder builder = SolrNettyRequest.newBuilder();
-		String req = "*:*&indent=on&rows=10";
-		//builder.setParams(new LiteralByteString(req.getBytes()));
+		ModifiableSolrParams solrParams = new ModifiableSolrParams();
+		solrParams.set("q", "*:*");
+		solrParams.set("_core", "merge");
+		NamedList<Object> namedList =solrParams.toNamedList();
+		try {
+			builder.setParams(NettyUtils.paramsToBytes(namedList, 40*namedList.size()));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		builder.setStreamsFormat(3);
+		builder.setRid(i);
 		return builder.build();
 	}
 

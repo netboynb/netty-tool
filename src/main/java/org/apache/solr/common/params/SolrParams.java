@@ -18,6 +18,7 @@
 package org.apache.solr.common.params;
 
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -297,7 +298,22 @@ public abstract class SolrParams implements Serializable {
     }
     return new MapSolrParams(map);
   }
-  
+
+  public static ModifiableSolrParams toModifiableSolrParams(NamedList<Object> params) {
+	  ModifiableSolrParams mParams = new ModifiableSolrParams();
+	  for(int i=0; i<params.size(); i++) {
+		  String name = params.getName(i);
+		  Object obj = params.getVal(i);
+		  if(obj instanceof Collection) {
+			  mParams.add(name, ((Collection<String>) obj).toArray(new String[0]));
+		  } else if(obj instanceof String[]) {
+			  mParams.add(name, (String[]) obj);
+		  } else {
+			  mParams.add(name, obj.toString());
+		  }
+	  }
+	  return mParams;
+  }
   /** Convert this to a NamedList */
   public NamedList<Object> toNamedList() {
     final SimpleOrderedMap<Object> result = new SimpleOrderedMap<Object>();
