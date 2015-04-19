@@ -33,12 +33,17 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.params.ClientParamBean;
+import org.apache.http.conn.ClientConnectionManager;
+import org.apache.http.conn.scheme.Scheme;
+import org.apache.http.conn.ssl.SSLSocketFactory;
+import org.apache.http.conn.ssl.X509HostnameVerifier;
 import org.apache.http.entity.HttpEntityWrapper;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.impl.client.SystemDefaultHttpClient;
 import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
-import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager; // jdoc
+import org.apache.http.impl.client.SystemDefaultHttpClient;
 import org.apache.http.impl.conn.PoolingClientConnectionManager;
+import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager; // jdoc
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.protocol.HttpContext;
 import org.apache.solr.common.params.ModifiableSolrParams;
@@ -50,7 +55,6 @@ import org.slf4j.LoggerFactory;
  * Utility class for creating/configuring httpclient instances. 
  */
 public class HttpClientUtil {
-  
   // socket timeout measured in ms, closes a socket if read
   // takes longer than x ms to complete. throws
   // java.net.SocketTimeoutException: Read timed out exception
@@ -74,6 +78,8 @@ public class HttpClientUtil {
   // Basic auth password 
   public static final String PROP_BASIC_AUTH_PASS = "httpBasicAuthPassword";
   
+  public static final String SYS_PROP_CHECK_PEER_NAME = "solr.ssl.checkPeerName";
+  
   private static final Logger logger = LoggerFactory
       .getLogger(HttpClientUtil.class);
   
@@ -91,6 +97,11 @@ public class HttpClientUtil {
   public static void setConfigurer(HttpClientConfigurer newConfigurer) {
     configurer = newConfigurer;
   }
+  
+  public static HttpClientConfigurer getConfigurer() {
+    return configurer;
+  }
+  
   /**
    * Creates new http client by using the provided configuration.
    * 
@@ -98,10 +109,26 @@ public class HttpClientUtil {
    *          http client configuration, if null a client with default
    *          configuration (no additional configuration) is created. 
    */
-  public static HttpClient createClient(final SolrParams params) {
+  public static CloseableHttpClient createClient(final SolrParams params) {
     final ModifiableSolrParams config = new ModifiableSolrParams(params);
-    logger.info("Creating new http client, config:" + config);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Creating new http client, config:" + config);
+    }
     final DefaultHttpClient httpClient = new SystemDefaultHttpClient();
+    configureClient(httpClient, config);
+    return httpClient;
+  }
+  
+  /**
+   * Creates new http client by using the provided configuration.
+   * 
+   */
+  public static CloseableHttpClient createClient(final SolrParams params, ClientConnectionManager cm) {
+    final ModifiableSolrParams config = new ModifiableSolrParams(params);
+    if (logger.isDebugEnabled()) {
+      logger.debug("Creating new http client, config:" + config);
+    }
+    final DefaultHttpClient httpClient = new DefaultHttpClient(cm);
     configureClient(httpClient, config);
     return httpClient;
   }
@@ -113,6 +140,14 @@ public class HttpClientUtil {
   public static void configureClient(final DefaultHttpClient httpClient,
       SolrParams config) {
     configurer.configure(httpClient,  config);
+  }
+  
+  public static void close(HttpClient httpClient) { 
+    if (httpClient instanceof CloseableHttpClient) {
+      org.apache.solr.common.util.IOUtils.closeQuietly((CloseableHttpClient) httpClient);
+    } else {
+      httpClient.getConnectionManager().shutdown();
+    }
   }
 
   /**
@@ -206,7 +241,14 @@ public class HttpClientUtil {
     if (!useRetry) {
       httpClient.setHttpRequestRetryHandler(NO_RETRY);
     } else {
-      httpClient.setHttpRequestRetryHandler(new DefaultHttpRequestRetryHandler());
+      // if the request is not fully sent, we retry
+      // streaming updates are not a problem, because they are not retryable
+      httpClient.setHttpRequestRetryHandler(new DefaultHttpRequestRetryHandler(){
+        @Override
+        protected boolean handleAsIdempotent(final HttpRequest request) {
+          return false; // we can't tell if a Solr request is idempotent
+        }
+      });
     }
   }
 
@@ -233,6 +275,23 @@ public class HttpClientUtil {
     new ClientParamBean(httpClient.getParams()).setHandleRedirects(followRedirects);
   }
 
+  public static void setHostNameVerifier(DefaultHttpClient httpClient,
+      X509HostnameVerifier hostNameVerifier) {
+    Scheme httpsScheme = httpClient.getConnectionManager().getSchemeRegistry().get("https");
+    if (httpsScheme != null) {
+      SSLSocketFactory sslSocketFactory = (SSLSocketFactory) httpsScheme.getSchemeSocketFactory();
+      sslSocketFactory.setHostnameVerifier(hostNameVerifier);
+    }
+  }
+  
+  public static void setStaleCheckingEnabled(final HttpClient httpClient, boolean enabled) {
+    HttpConnectionParams.setStaleCheckingEnabled(httpClient.getParams(), enabled);
+  }
+  
+  public static void setTcpNoDelay(final HttpClient httpClient, boolean tcpNoDelay) {
+    HttpConnectionParams.setTcpNoDelay(httpClient.getParams(), tcpNoDelay);
+  }
+  
   private static class UseCompressionRequestInterceptor implements
       HttpRequestInterceptor {
     

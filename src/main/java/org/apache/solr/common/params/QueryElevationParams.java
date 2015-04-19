@@ -27,10 +27,12 @@ public interface QueryElevationParams {
   String ENABLE = "enableElevation";
   String EXCLUSIVE = "exclusive";
   String FORCE_ELEVATION = "forceElevation";
+  String IDS = "elevateIds";
+  String EXCLUDE = "excludeIds";
   /**
    * The name of the field that editorial results will be written out as when using the QueryElevationComponent, which
    * automatically configures the EditorialMarkerFactory.  The default name is "elevated"
-   * <br/>
+   * <br>
    * See http://wiki.apache.org/solr/DocTransformers
    */
   String EDITORIAL_MARKER_FIELD_NAME = "editorialMarkerFieldName";
@@ -38,7 +40,7 @@ public interface QueryElevationParams {
    * The name of the field that excluded editorial results will be written out as when using the QueryElevationComponent, which
    * automatically configures the EditorialMarkerFactory.  The default name is "excluded".  This is only used
    * when {@link #MARK_EXCLUDES} is set to true at query time.
-   * <br/>
+   * <br>
    * See http://wiki.apache.org/solr/DocTransformers
    */
   String EXCLUDE_MARKER_FIELD_NAME = "excludeMarkerFieldName";

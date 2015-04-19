@@ -33,7 +33,7 @@ public class AnalysisResponseBase extends SolrResponseBase {
 
   /**
    * Parses the given named list and builds a list of analysis phases form it. Expects a named list of the form:
-   * <p/>
+   * <br>
    * <pre><code>
    *  &lt;lst name="index"&gt;
    *      &lt;arr name="Tokenizer"&gt;
@@ -63,7 +63,7 @@ public class AnalysisResponseBase extends SolrResponseBase {
    * @return The built analysis phases list.
    */
   protected List<AnalysisPhase> buildPhases(NamedList<List<NamedList<Object>>> phaseNL) {
-    List<AnalysisPhase> phases = new ArrayList<AnalysisPhase>(phaseNL.size());
+    List<AnalysisPhase> phases = new ArrayList<>(phaseNL.size());
     for (Map.Entry<String, List<NamedList<Object>>> phaseEntry : phaseNL) {
       AnalysisPhase phase = new AnalysisPhase(phaseEntry.getKey());
       List<NamedList<Object>> tokens = phaseEntry.getValue();
@@ -78,7 +78,7 @@ public class AnalysisResponseBase extends SolrResponseBase {
 
   /**
    * Parses the given named list and builds a token infoform it. Expects a named list of the form:
-   * <p/>
+   * <br>
    * <pre><code>
    *  &lt;arr name="Tokenizer"&gt;
    *      &lt;str name="text"&gt;the_text&lt;/str&gt;
@@ -116,7 +116,7 @@ public class AnalysisResponseBase extends SolrResponseBase {
   public static class AnalysisPhase {
 
     private final String className;
-    private List<TokenInfo> tokens = new ArrayList<TokenInfo>();
+    private List<TokenInfo> tokens = new ArrayList<>();
 
     AnalysisPhase(String className) {
       this.className = className;

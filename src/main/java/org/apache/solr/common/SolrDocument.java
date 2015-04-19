@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,9 +45,11 @@ public class SolrDocument implements Map<String,Object>, Iterable<Map.Entry<Stri
 {
   private final Map<String,Object> _fields;
   
+  private List<SolrDocument> _childDocuments;
+  
   public SolrDocument()
   {
-    _fields = new LinkedHashMap<String,Object>();
+    _fields = new LinkedHashMap<>();
   }
 
   /**
@@ -68,6 +71,10 @@ public class SolrDocument implements Map<String,Object>, Iterable<Map.Entry<Stri
   public void clear()
   {
     _fields.clear();
+
+    if(_childDocuments != null) {
+      _childDocuments.clear();
+    }
   }
   
   /**
@@ -96,7 +103,7 @@ public class SolrDocument implements Map<String,Object>, Iterable<Map.Entry<Stri
       // nothing
     }
     else if( value instanceof Iterable ) {
-      ArrayList<Object> lst = new ArrayList<Object>();
+      ArrayList<Object> lst = new ArrayList<>();
       for( Object o : (Iterable)value ) {
         lst.add( o );
       }
@@ -122,7 +129,7 @@ public class SolrDocument implements Map<String,Object>, Iterable<Map.Entry<Stri
     Object existing = _fields.get(name);
     if (existing == null) {
       if( value instanceof Collection ) {
-        Collection<Object> c = new ArrayList<Object>( 3 );
+        Collection<Object> c = new ArrayList<>( 3 );
         for ( Object o : (Collection<Object>)value ) {
           c.add(o);
         }
@@ -138,7 +145,7 @@ public class SolrDocument implements Map<String,Object>, Iterable<Map.Entry<Stri
       vals = (Collection<Object>)existing;
     }
     else {
-      vals = new ArrayList<Object>( 3 );
+      vals = new ArrayList<>( 3 );
       vals.add( existing );
     }
     
@@ -193,7 +200,7 @@ public class SolrDocument implements Map<String,Object>, Iterable<Map.Entry<Stri
       return (Collection<Object>)v;
     }
     if( v != null ) {
-      ArrayList<Object> arr = new ArrayList<Object>(1);
+      ArrayList<Object> arr = new ArrayList<>(1);
       arr.add( v );
       return arr;
     }
@@ -207,13 +214,13 @@ public class SolrDocument implements Map<String,Object>, Iterable<Map.Entry<Stri
   }
 
   /**
-   * Iterate of String->Object keys
+   * Iterate of String-&gt;Object keys
    */
   @Override
   public Iterator<Entry<String, Object>> iterator() {
     return _fields.entrySet().iterator();
   }
-  
+
   //-----------------------------------------------------------------------------------------
   // JSTL Helpers
   //-----------------------------------------------------------------------------------------
@@ -358,5 +365,32 @@ public class SolrDocument implements Map<String,Object>, Iterable<Map.Entry<Stri
   @Override
   public Collection<Object> values() {
     return _fields.values();
+  }
+  
+  public void addChildDocument(SolrDocument child) {
+    if (_childDocuments == null) {
+      _childDocuments = new ArrayList<>();
+    }
+     _childDocuments.add(child);
+   }
+   
+   public void addChildDocuments(Collection<SolrDocument> childs) {
+     for (SolrDocument child : childs) {
+       addChildDocument(child);
+     }
+   }
+
+   /** Returns the list of child documents, or null if none. */
+   public List<SolrDocument> getChildDocuments() {
+     return _childDocuments;
+   }
+   
+   public boolean hasChildDocuments() {
+     boolean isEmpty = (_childDocuments == null || _childDocuments.isEmpty());
+     return !isEmpty;
+   }
+
+  public int getChildDocumentCount() {
+    return _childDocuments.size();
   }
 }

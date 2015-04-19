@@ -19,18 +19,25 @@ package org.apache.solr.common;
 
 import java.io.CharArrayWriter;
 import java.io.PrintWriter;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
+import org.apache.solr.common.util.NamedList;
 import org.slf4j.Logger;
+import org.slf4j.MDC;
 
 /**
  *
  */
 public class SolrException extends RuntimeException {
 
+  final private Map mdcContext;
+
   /**
+   * This list of valid HTTP Status error codes that Solr may return in 
+   * the case of a "Server Side" error.
+   *
    * @since solr 1.2
    */
   public enum ErrorCode {
@@ -39,8 +46,10 @@ public class SolrException extends RuntimeException {
     FORBIDDEN( 403 ),
     NOT_FOUND( 404 ),
     CONFLICT( 409 ),
+    UNSUPPORTED_MEDIA_TYPE( 415 ),
     SERVER_ERROR( 500 ),
     SERVICE_UNAVAILABLE( 503 ),
+    INVALID_STATE( 510 ),
     UNKNOWN(0);
     public final int code;
     
@@ -59,20 +68,65 @@ public class SolrException extends RuntimeException {
   public SolrException(ErrorCode code, String msg) {
     super(msg);
     this.code = code.code;
+    this.mdcContext = MDC.getCopyOfContextMap();
   }
   public SolrException(ErrorCode code, String msg, Throwable th) {
     super(msg, th);
     this.code = code.code;
+    this.mdcContext = MDC.getCopyOfContextMap();
   }
 
   public SolrException(ErrorCode code, Throwable th) {
     super(th);
     this.code = code.code;
+    this.mdcContext = MDC.getCopyOfContextMap();
+  }
+
+  /**
+   * Constructor that can set arbitrary http status code. Not for 
+   * use in Solr, but may be used by clients in subclasses to capture 
+   * errors returned by the servlet container or other HTTP proxies.
+   */
+  protected SolrException(int code, String msg, Throwable th) {
+    super(msg, th);
+    this.code = code;
+    this.mdcContext = MDC.getCopyOfContextMap();
   }
   
   int code=0;
+  protected NamedList<String> metadata;
+
+  /**
+   * The HTTP Status code associated with this Exception.  For SolrExceptions 
+   * thrown by Solr "Server Side", this should valid {@link ErrorCode}, 
+   * however client side exceptions may contain an arbitrary error code based 
+   * on the behavior of the Servlet Container hosting Solr, or any HTTP 
+   * Proxies that may exist between the client and the server.
+   *
+   * @return The HTTP Status code associated with this Exception
+   */
   public int code() { return code; }
 
+  public void setMetadata(NamedList<String> metadata) {
+    this.metadata = metadata;
+  }
+
+  public NamedList<String> getMetadata() {
+    return metadata;
+  }
+
+  public String getMetadata(String key) {
+    return (metadata != null && key != null) ? metadata.get(key) : null;
+  }
+
+  public void setMetadata(String key, String value) {
+    if (key == null || value == null)
+      throw new IllegalArgumentException("Exception metadata cannot be null!");
+
+    if (metadata == null)
+      metadata = new NamedList<String>();
+    metadata.add(key, value);
+  }
 
   public void log(Logger log) { log(log,this); }
   public static void log(Logger log, Throwable e) {
@@ -156,6 +210,36 @@ public class SolrException extends RuntimeException {
       }
     }
     return t;
+  }
+
+  public void logInfoWithMdc(Logger logger, String msg) {
+    Map previousMdcContext = MDC.getCopyOfContextMap();
+    MDC.setContextMap(mdcContext);
+    try {
+      logger.info(msg);
+    } finally{
+      MDC.setContextMap(previousMdcContext);
+    }
+  }
+
+  public void logDebugWithMdc(Logger logger, String msg) {
+    Map previousMdcContext = MDC.getCopyOfContextMap();
+    MDC.setContextMap(mdcContext);
+    try {
+      logger.debug(msg);
+    } finally{
+      MDC.setContextMap(previousMdcContext);
+    }
+  }
+
+  public void logWarnWithMdc(Logger logger, String msg) {
+    Map previousMdcContext = MDC.getCopyOfContextMap();
+    MDC.setContextMap(mdcContext);
+    try {
+      logger.warn(msg);
+    } finally{
+      MDC.setContextMap(previousMdcContext);
+    }
   }
 
 }

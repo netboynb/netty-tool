@@ -106,7 +106,7 @@ public class RequiredSolrParams extends SolrParams {
 
   //----------------------------------------------------------
   // Functions with a default value - pass directly to the
-  // wrapped SolrParams (they won't return null - unless its the default)
+  // wrapped SolrParams (they won't return null - unless it's the default)
   //----------------------------------------------------------
 
   @Override
@@ -147,5 +147,9 @@ public class RequiredSolrParams extends SolrParams {
   @Override
   public String getFieldParam(String field, String param, String def) {
     return params.getFieldParam(field, param, def);
+  }
+
+  public void check(String... params){
+    for (String param : params) get(param);
   }
 }

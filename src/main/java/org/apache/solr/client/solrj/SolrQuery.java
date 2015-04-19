@@ -42,6 +42,8 @@ import java.util.regex.Pattern;
  */
 public class SolrQuery extends ModifiableSolrParams 
 {  
+  public static final String DOCID = "_docid_"; // duplicate of org.apache.solr.search.QueryParsing.DOCID which is not accessible from here
+  
   public enum ORDER { desc, asc;
     public ORDER reverse() {
       return (this == asc) ? desc : asc;
@@ -66,7 +68,7 @@ public class SolrQuery extends ModifiableSolrParams
 
   /** enable/disable terms.  
    * 
-   * @param b flag to indicate terms should be enabled. <br /> if b==false, removes all other terms parameters
+   * @param b flag to indicate terms should be enabled. <br> if b==false, removes all other terms parameters
    * @return Current reference (<i>this</i>)
    */
   public SolrQuery setTerms(boolean b) {
@@ -271,7 +273,48 @@ public class SolrQuery extends ModifiableSolrParams
     this.set(FacetParams.FACET, true);
     return this;
   }
-
+  
+  /**
+   * Add Interval Faceting on a field. All intervals for the same field should be included
+   * in the same call to this method.
+   * For syntax documentation see <a href="https://wiki.apache.org/solr/SimpleFacetParameters#Interval_Faceting">Solr wiki</a>.
+   * <br>
+   * Key substitution, filter exclusions or other local params on the field are not supported when using this method, 
+   * if this is needed, use the lower level {@link #add} method.<br> 
+   * Key substitution IS supported on intervals when using this method.
+   * 
+   * 
+   * @param field the field to add facet intervals. Must be an existing field and can't be null
+   * @param intervals Intervals to be used for faceting. It can be an empty array, but it can't 
+   * be <code>null</code>
+   * @return this
+   */
+  public SolrQuery addIntervalFacets(String field, String[] intervals) {
+    if (intervals == null) {
+      throw new IllegalArgumentException("Can't add null intervals");
+    }
+    if (field == null) {
+      throw new IllegalArgumentException("Field can't be null");
+    }
+    set(FacetParams.FACET, true);
+    add(FacetParams.FACET_INTERVAL, field);
+    for (String interval:intervals) {
+      add(String.format(Locale.ROOT, "f.%s.facet.interval.set", field), interval);
+    }
+    return this;
+  }
+  
+  /**
+   * Remove all Interval Facets on a field
+   * 
+   * @param field the field to remove from facet intervals
+   * @return Array of current intervals for <code>field</code>
+   */
+  public String[] removeIntervalFacets(String field) {
+    while(remove(FacetParams.FACET_INTERVAL, field)){};
+    return remove(String.format(Locale.ROOT, "f.%s.facet.interval.set", field));
+  }
+  
   /** get the facet fields
    * 
    * @return string array of facet fields or null if not set/empty
@@ -284,7 +327,7 @@ public class SolrQuery extends ModifiableSolrParams
    * 
    * @param name Name of the facet field to be removed.
    * 
-   * @return true, if the item was removed. <br />
+   * @return true, if the item was removed. <br>
    *           false, if the facet field was null or did not exist.
    */
   public boolean removeFacetField(String name) {
@@ -297,7 +340,7 @@ public class SolrQuery extends ModifiableSolrParams
   
   /** enable/disable faceting.  
    * 
-   * @param b flag to indicate faceting should be enabled. <br /> if b==false, removes all other faceting parameters
+   * @param b flag to indicate faceting should be enabled. <br> if b==false, removes all other faceting parameters
    * @return Current reference (<i>this</i>)
    */
   public SolrQuery setFacet(boolean b) {
@@ -315,6 +358,7 @@ public class SolrQuery extends ModifiableSolrParams
       this.remove(FacetParams.FACET_SORT);
       this.remove(FacetParams.FACET_ZEROS);
       this.remove(FacetParams.FACET_PREFIX); // does not include the individual fields...
+      this.remove(FacetParams.FACET_INTERVAL); // does not remove interval parameters
     }
     return this;
   }
@@ -407,14 +451,6 @@ public class SolrQuery extends ModifiableSolrParams
     return this;
   }
 
-  /**
-   * @deprecated use {@link #setFacetMissing(Boolean)}
-   */
-  @Deprecated
-  public SolrQuery setMissing(String fld) {
-    return setFacetMissing(Boolean.valueOf(fld));
-  }
-
   /** get facet sort
    * 
    * @return facet sort or default of {@link FacetParams#FACET_SORT_COUNT}
@@ -423,18 +459,6 @@ public class SolrQuery extends ModifiableSolrParams
     return this.get(FacetParams.FACET_SORT, FacetParams.FACET_SORT_COUNT);
   }
 
-  /** get facet sort
-   * 
-   * @return facet sort or default of true. <br />
-   * true corresponds to
-   * {@link FacetParams#FACET_SORT_COUNT} and <br />false to {@link FacetParams#FACET_SORT_INDEX}
-   * 
-   * @deprecated Use {@link #getFacetSortString()} instead.
-   */
-  @Deprecated
-  public boolean getFacetSort() {
-    return this.get(FacetParams.FACET_SORT, FacetParams.FACET_SORT_COUNT).equals(FacetParams.FACET_SORT_COUNT);
-  }
 
   /** set facet sort
    * 
@@ -443,19 +467,6 @@ public class SolrQuery extends ModifiableSolrParams
    */
   public SolrQuery setFacetSort(String sort) {
     this.set(FacetParams.FACET_SORT, sort);
-    return this;
-  }
-
-  /** set facet sort
-   * 
-   * @param sort sort facets
-   * @return this
-   * @deprecated Use {@link #setFacetSort(String)} instead, true corresponds to
-   * {@link FacetParams#FACET_SORT_COUNT} and false to {@link FacetParams#FACET_SORT_INDEX}.
-   */
-  @Deprecated
-  public SolrQuery setFacetSort(boolean sort) { 
-    this.set(FacetParams.FACET_SORT, sort == true ? FacetParams.FACET_SORT_COUNT : FacetParams.FACET_SORT_INDEX);
     return this;
   }
 
@@ -472,7 +483,7 @@ public class SolrQuery extends ModifiableSolrParams
   /** remove a field for highlighting
    * 
    * @param f field name to not highlight
-   * @return <i>true</i>, if removed, <br /> <i>false</i>, otherwise
+   * @return <i>true</i>, if removed, <br> <i>false</i>, otherwise
    */
   public boolean removeHighlightField(String f) {
     boolean b = this.remove(HighlightParams.FIELDS, f);
@@ -536,57 +547,6 @@ public class SolrQuery extends ModifiableSolrParams
   }
 
   /**
-   * Replaces the sort string with a single sort field.
-   * @deprecated Use {@link #setSort(SortClause)} instead, which is part
-   * of an api handling a wider range of sort specifications.
-   */
-  @Deprecated
-  public SolrQuery setSortField(String field, ORDER order) {
-    this.remove(CommonParams.SORT);
-    addValueToParam(CommonParams.SORT, toSortString(field, order));
-    return this;
-  }
-  
-  /**
-   * Adds a sort field to the end of the sort string.
-   * @deprecated Use {@link #addSort(SortClause)} instead, which is part
-   * of an api handling a wider range of sort specifications.
-   */
-  @Deprecated
-  public SolrQuery addSortField(String field, ORDER order) {
-    return addValueToParam(CommonParams.SORT, toSortString(field, order));
-  }
-
-  /**
-   * Removes a sort field to the end of the sort string.
-   * @deprecated Use {@link #removeSort(SortClause)} instead, which is part
-   * of an api handling a wider range of sort specifications.
-   */
-  @Deprecated
-  public SolrQuery removeSortField(String field, ORDER order) {
-    String[] sorts = getSortFields();
-    if (sorts != null) {
-      String removeSort = toSortString(field, order);
-      String s = join(sorts, ",", removeSort);
-      if (s.length()==0) s=null;
-      this.set(CommonParams.SORT, s);
-    }
-    return this;
-  }
-  
-  /**
-   * Gets an array of sort specifications.
-   * @deprecated Use {@link #getSorts()} instead, which is part
-   * of an api handling a wider range of sort specifications.
-   */
-  @Deprecated
-  public String[] getSortFields() {
-    String s = getSortField();
-    if (s==null) return null;
-    return s.trim().split(", *");
-  }
-
-  /**
    * Gets the raw sort field, as it will be sent to Solr.
    * <p>
    * The returned sort field will always contain a serialized version
@@ -618,7 +578,7 @@ public class SolrQuery extends ModifiableSolrParams
    * @since 4.2
    */
   public SolrQuery setSorts(List<SortClause> value) {
-    sortClauses = new ArrayList<SortClause>(value);
+    sortClauses = new ArrayList<>(value);
     serializeSorts();
     return this;
   }
@@ -672,7 +632,7 @@ public class SolrQuery extends ModifiableSolrParams
    * @since 4.2
    */
   public SolrQuery addSort(SortClause sortClause) {
-    if (sortClauses == null) sortClauses = new ArrayList<SortClause>();
+    if (sortClauses == null) sortClauses = new ArrayList<>();
     sortClauses.add(sortClause);
     serializeSorts();
     return this;
@@ -694,7 +654,7 @@ public class SolrQuery extends ModifiableSolrParams
   /**
    * Updates or adds a single sort field specification to the current sort
    * information. If the sort field already exist in the sort information map,
-   * it's position is unchanged and the sort order is set; if it does not exist,
+   * its position is unchanged and the sort order is set; if it does not exist,
    * it is appended at the end with the specified order..
    *
    * @return the modified SolrQuery object, for easy chaining
@@ -770,6 +730,13 @@ public class SolrQuery extends ModifiableSolrParams
     this.add( StatsParams.STATS_FIELD, field );
   }
   
+
+  public void addGetFieldStatistics( String ... field )
+    {
+      this.set( StatsParams.STATS, true );
+      this.add( StatsParams.STATS_FIELD, field );
+    }
+  
   public void addStatsFieldFacets( String field, String ... facets )
   {
     if( field == null ) {
@@ -779,6 +746,14 @@ public class SolrQuery extends ModifiableSolrParams
       for( String f : facets ) {
         this.add( "f."+field+"."+StatsParams.STATS_FACET, f );
       }
+    }
+  }
+
+  public void addStatsFieldCalcDistinct(String field, boolean calcDistinct) {
+    if (field == null) {
+      this.add(StatsParams.STATS_CALC_DISTINCT, Boolean.toString(calcDistinct));
+    } else {
+      this.add("f." + field + "." + StatsParams.STATS_CALC_DISTINCT, Boolean.toString(calcDistinct));
     }
   }
 
@@ -889,6 +864,10 @@ public class SolrQuery extends ModifiableSolrParams
     this.set(CommonParams.DEBUG_QUERY, String.valueOf(showDebugInfo));
   }
 
+  public void setDistrib(boolean val) {
+    this.set(CommonParams.DISTRIB, String.valueOf(val));
+  }
+
 
   public SolrQuery setStart(Integer start) {
     if( start == null ) {
@@ -921,22 +900,6 @@ public class SolrQuery extends ModifiableSolrParams
 
   public String getRequestHandler() {
     return this.get(CommonParams.QT);
-  }
-
-  /**
-   * @deprecated See {@link #setRequestHandler(String)}.
-   */
-  @Deprecated
-  public SolrQuery setQueryType(String qt) {
-    return setRequestHandler(qt);
-  }
-
-  /**
-   * @deprecated See {@link #getRequestHandler()}.
-   */
-  @Deprecated
-  public String getQueryType() {
-    return getRequestHandler();
   }
 
   /**

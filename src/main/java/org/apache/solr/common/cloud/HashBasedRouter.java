@@ -28,13 +28,26 @@ import java.util.Collections;
 public abstract class HashBasedRouter extends DocRouter {
 
   @Override
-  public Slice getTargetSlice(String id, SolrInputDocument sdoc, SolrParams params, DocCollection collection) {
-    if (id == null) id = getId(sdoc, params);
-    int hash = sliceHash(id, sdoc, params);
+  public Slice getTargetSlice(String id, SolrInputDocument sdoc, String route, SolrParams params, DocCollection collection) {
+    int hash;
+    if (route != null) {
+      hash = sliceHash(route, sdoc, params, collection);
+    } else {
+      if (id == null) id = getId(sdoc, params);
+      hash = sliceHash(id, sdoc, params, collection);
+    }
     return hashToSlice(hash, collection);
   }
 
-  protected int sliceHash(String id, SolrInputDocument sdoc, SolrParams params) {
+  @Override
+  public boolean isTargetSlice(String id, SolrInputDocument sdoc, SolrParams params, String shardId, DocCollection collection) {
+    if (id == null) id = getId(sdoc, params);
+    int hash = sliceHash(id, sdoc, params, collection);
+    Range range = collection.getSlice(shardId).getRange();
+    return range != null && range.includes(hash);
+  }
+
+  public int sliceHash(String id, SolrInputDocument sdoc, SolrParams params, DocCollection collection) {
     return Hash.murmurhash3_x86_32(id, 0, id.length(), 0);
   }
 
@@ -45,11 +58,11 @@ public abstract class HashBasedRouter extends DocRouter {
   }
 
   protected Slice hashToSlice(int hash, DocCollection collection) {
-    for (Slice slice : collection.getSlices()) {
+    for (Slice slice : collection.getActiveSlices()) {
       Range range = slice.getRange();
       if (range != null && range.includes(hash)) return slice;
     }
-    throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, "No slice servicing hash code " + Integer.toHexString(hash) + " in " + collection);
+    throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, "No active slice servicing hash code " + Integer.toHexString(hash) + " in " + collection);
   }
 
 
@@ -58,11 +71,11 @@ public abstract class HashBasedRouter extends DocRouter {
     if (shardKey == null) {
       // search across whole collection
       // TODO: this may need modification in the future when shard splitting could cause an overlap
-      return collection.getSlices();
+      return collection.getActiveSlices();
     }
 
     // use the shardKey as an id for plain hashing
-    Slice slice = getTargetSlice(shardKey, null, params, collection);
+    Slice slice = getTargetSlice(shardKey, null, null, params, collection);
     return slice == null ? Collections.<Slice>emptyList() : Collections.singletonList(slice);
   }
 }

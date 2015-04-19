@@ -22,7 +22,7 @@ import java.io.*;
 /** Single threaded buffered InputStream
  *  Internal Solr use only, subject to change.
  */
-public class FastInputStream extends InputStream implements DataInput {
+public class FastInputStream extends DataInputInputStream {
   protected final InputStream in;
   protected final byte[] buf;
   protected int pos;
@@ -94,6 +94,21 @@ public class FastInputStream extends InputStream implements DataInput {
   @Override
   public int available() throws IOException {
     return end - pos;
+  }
+
+  /** Returns the internal buffer used for caching */
+  public byte[] getBuffer() {
+    return buf;
+  }
+
+  /** Current position within the internal buffer */
+  public int getPositionInBuffer() {
+    return pos;
+  }
+
+  /** Current end-of-data position within the internal buffer.  This is one past the last valid byte. */
+  public int getEndInBuffer() {
+    return end;
   }
 
   @Override

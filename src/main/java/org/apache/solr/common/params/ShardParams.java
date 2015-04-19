@@ -45,7 +45,12 @@ public interface ShardParams {
 
   /** Should things fail if there is an error? (true/false) */
   public static final String SHARDS_TOLERANT = "shards.tolerant";
+  
+  /** query purpose for shard requests */
+  public static final String SHARDS_PURPOSE = "shards.purpose";
 
-  /** Should things fail if there is an error? (true/false) */
-  public static final String SHARD_KEYS = "shard.keys";
+  public static final String _ROUTE_ = "_route_";
+
+  /** Force a single-pass distributed query? (true/false) */
+  public static final String DISTRIB_SINGLE_PASS = "distrib.singlePass";
 }

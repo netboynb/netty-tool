@@ -32,59 +32,64 @@ import java.util.Map;
 public class SpellCheckResponse {
   private boolean correctlySpelled;
   private List<Collation> collations;
-  private List<Suggestion> suggestions = new ArrayList<Suggestion>();
-  Map<String, Suggestion> suggestionMap = new LinkedHashMap<String, Suggestion>();
+  private List<Suggestion> suggestions = new ArrayList<>();
+  Map<String, Suggestion> suggestionMap = new LinkedHashMap<>();
 
-  public SpellCheckResponse(NamedList<NamedList<Object>> spellInfo) {
-    NamedList<Object> sugg = spellInfo.get("suggestions");
+  public SpellCheckResponse(NamedList<Object> spellInfo) {
+    @SuppressWarnings("unchecked")
+    NamedList<Object> sugg = (NamedList<Object>) spellInfo.get("suggestions");
     if (sugg == null) {
       correctlySpelled = true;
       return;
     }
     for (int i = 0; i < sugg.size(); i++) {
       String n = sugg.getName(i);
-      if ("correctlySpelled".equals(n)) {
-        correctlySpelled = (Boolean) sugg.getVal(i);
-      } else if ("collationInternalRank".equals(n)){
-        //continue;
-      } else if ("collation".equals(n)) {
-        List<Object> collationInfo = sugg.getAll(n);
-        collations = new ArrayList<Collation>(collationInfo.size());
-        for (Object o : collationInfo) {
-          if (o instanceof String) {
-            collations.add(new Collation()
-                .setCollationQueryString((String) o));
-          } else if (o instanceof NamedList) {
-            @SuppressWarnings("unchecked")
-            NamedList<Object> expandedCollation = (NamedList<Object>) o;
-            String collationQuery
-              = (String) expandedCollation.get("collationQuery");
-            int hits = (Integer) expandedCollation.get("hits");
-            @SuppressWarnings("unchecked")
-            NamedList<String> misspellingsAndCorrections
-              = (NamedList<String>) expandedCollation.get("misspellingsAndCorrections");
+      @SuppressWarnings("unchecked")
+      Suggestion s = new Suggestion(n, (NamedList<Object>) sugg.getVal(i));
+      suggestionMap.put(n, s);
+      suggestions.add(s);
+    }
+    
+    Boolean correctlySpelled = (Boolean) spellInfo.get("correctlySpelled");
+    if (correctlySpelled != null) {
+      this.correctlySpelled = correctlySpelled;
+    }
+    
+    @SuppressWarnings("unchecked")
+    NamedList<Object> coll = (NamedList<Object>) spellInfo.get("collations");
+    if (coll != null) {
+      // The 'collationInternalRank' values are ignored so we only care 'collation's.
+      List<Object> collationInfo = coll.getAll("collation");
+      collations = new ArrayList<>(collationInfo.size());
+      for (Object o : collationInfo) {
+        if (o instanceof String) {
+          collations.add(new Collation()
+              .setCollationQueryString((String) o));
+        } else if (o instanceof NamedList) {
+          @SuppressWarnings("unchecked")
+          NamedList<Object> expandedCollation = (NamedList<Object>) o;
+          String collationQuery
+            = (String) expandedCollation.get("collationQuery");
+          int hits = (Integer) expandedCollation.get("hits");
+          @SuppressWarnings("unchecked")
+          NamedList<String> misspellingsAndCorrections
+            = (NamedList<String>) expandedCollation.get("misspellingsAndCorrections");
 
-            Collation collation = new Collation();
-            collation.setCollationQueryString(collationQuery);
-            collation.setNumberOfHits(hits);
+          Collation collation = new Collation();
+          collation.setCollationQueryString(collationQuery);
+          collation.setNumberOfHits(hits);
 
-            for (int ii = 0; ii < misspellingsAndCorrections.size(); ii++) {
-              String misspelling = misspellingsAndCorrections.getName(ii);
-              String correction = misspellingsAndCorrections.getVal(ii);
-              collation.addMisspellingsAndCorrection(new Correction(
-                  misspelling, correction));
-            }
-            collations.add(collation);
-          } else {
-            throw new AssertionError(
-                "Should get Lists of Strings or List of NamedLists here.");
+          for (int ii = 0; ii < misspellingsAndCorrections.size(); ii++) {
+            String misspelling = misspellingsAndCorrections.getName(ii);
+            String correction = misspellingsAndCorrections.getVal(ii);
+            collation.addMisspellingsAndCorrection(new Correction(
+                misspelling, correction));
           }
+          collations.add(collation);
+        } else {
+          throw new AssertionError(
+              "Should get Lists of Strings or List of NamedLists here.");
         }
-      } else {
-        @SuppressWarnings("unchecked")
-        Suggestion s = new Suggestion(n, (NamedList<Object>) sugg.getVal(i));
-        suggestionMap.put(n, s);
-        suggestions.add(s);
       }
     }
   }
@@ -138,7 +143,7 @@ public class SpellCheckResponse {
     private int startOffset;
     private int endOffset;
     private int originalFrequency;
-    private List<String> alternatives = new ArrayList<String>();
+    private List<String> alternatives = new ArrayList<>();
     private List<Integer> alternativeFrequencies;
 
     public Suggestion(String token, NamedList<Object> suggestion) {
@@ -161,7 +166,7 @@ public class SpellCheckResponse {
             // extended results detected
             @SuppressWarnings("unchecked")
             List<NamedList> extended = (List<NamedList>)list;
-            alternativeFrequencies = new ArrayList<Integer>();
+            alternativeFrequencies = new ArrayList<>();
             for (NamedList nl : extended) {
               alternatives.add((String)nl.get("word"));
               alternativeFrequencies.add((Integer)nl.get("freq"));
@@ -205,23 +210,11 @@ public class SpellCheckResponse {
       return alternativeFrequencies;
     }
 
-    @Deprecated
-    /** @see #getAlternatives */
-    public List<String> getSuggestions() {
-      return alternatives;
-    }
-
-    @Deprecated
-    /** @see #getAlternativeFrequencies */
-    public List<Integer> getSuggestionFrequencies() {
-      return alternativeFrequencies;
-    }
-
   }
 
   public class Collation {
     private String collationQueryString;
-    private List<Correction> misspellingsAndCorrections = new ArrayList<Correction>();
+    private List<Correction> misspellingsAndCorrections = new ArrayList<>();
     private long numberOfHits;
 
     public long getNumberOfHits() {

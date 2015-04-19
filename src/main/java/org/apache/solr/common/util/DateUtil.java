@@ -71,7 +71,7 @@ public class DateUtil {
   /**
    * A suite of default date formats that can be parsed, and thus transformed to the Solr specific format
    */
-  public static final Collection<String> DEFAULT_DATE_FORMATS = new ArrayList<String>();
+  public static final Collection<String> DEFAULT_DATE_FORMATS = new ArrayList<>();
 
   static {
     DEFAULT_DATE_FORMATS.add("yyyy-MM-dd'T'HH:mm:ss'Z'");
@@ -105,7 +105,7 @@ public class DateUtil {
 
   /**
    * Slightly modified from org.apache.commons.httpclient.util.DateUtil.parseDate
-   * <p/>
+   * <p>
    * Parses the date value using the given date formats.
    *
    * @param dateValue   the date value to parse

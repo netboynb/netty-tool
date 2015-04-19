@@ -17,6 +17,8 @@ package org.apache.solr.client.solrj.impl;
  * limitations under the License.
  */
 
+
+import org.apache.http.conn.ssl.SSLSocketFactory;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.solr.common.params.SolrParams;
 
@@ -27,7 +29,7 @@ import org.apache.solr.common.params.SolrParams;
  */
 public class HttpClientConfigurer {
   
-  protected void configure(DefaultHttpClient httpClient, SolrParams config) {
+  public void configure(DefaultHttpClient httpClient, SolrParams config) {
     
     if (config.get(HttpClientUtil.PROP_MAX_CONNECTIONS) != null) {
       HttpClientUtil.setMaxConnections(httpClient,
@@ -49,15 +51,14 @@ public class HttpClientConfigurer {
           config.getInt(HttpClientUtil.PROP_SO_TIMEOUT));
     }
     
-    if (config.get(HttpClientUtil.PROP_USE_RETRY) != null) {
-      HttpClientUtil.setUseRetry(httpClient,
-          config.getBool(HttpClientUtil.PROP_USE_RETRY));
-    }
-    
     if (config.get(HttpClientUtil.PROP_FOLLOW_REDIRECTS) != null) {
       HttpClientUtil.setFollowRedirects(httpClient,
           config.getBool(HttpClientUtil.PROP_FOLLOW_REDIRECTS));
     }
+    
+    // always call setUseRetry, whether it is in config or not
+    HttpClientUtil.setUseRetry(httpClient,
+        config.getBool(HttpClientUtil.PROP_USE_RETRY, true));
     
     final String basicAuthUser = config
         .get(HttpClientUtil.PROP_BASIC_AUTH_USER);
@@ -69,5 +70,28 @@ public class HttpClientConfigurer {
       HttpClientUtil.setAllowCompression(httpClient,
           config.getBool(HttpClientUtil.PROP_ALLOW_COMPRESSION));
     }
+    
+    boolean sslCheckPeerName = toBooleanDefaultIfNull(
+        toBooleanObject(System.getProperty(HttpClientUtil.SYS_PROP_CHECK_PEER_NAME)), true);
+    if(sslCheckPeerName == false) {
+      HttpClientUtil.setHostNameVerifier(httpClient, SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+    }
+  }
+  
+  public static boolean toBooleanDefaultIfNull(Boolean bool, boolean valueIfNull) {
+    if (bool == null) {
+      return valueIfNull;
+    }
+    return bool.booleanValue() ? true : false;
+  }
+  
+  public static Boolean toBooleanObject(String str) {
+    if ("true".equalsIgnoreCase(str)) {
+      return Boolean.TRUE;
+    } else if ("false".equalsIgnoreCase(str)) {
+      return Boolean.FALSE;
+    }
+    // no match
+    return null;
   }
 }

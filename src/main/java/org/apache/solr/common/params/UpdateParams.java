@@ -52,6 +52,8 @@ public interface UpdateParams
   /** Rollback update commands */
   public static String ROLLBACK = "rollback";
 
+  public static String COLLECTION = "collection";
+
   /** Select the update processor chain to use.  A RequestHandler may or may not respect this parameter */
   public static final String UPDATE_CHAIN = "update.chain";
 
@@ -67,6 +69,4 @@ public interface UpdateParams
 
   /** Return versions of updates? */
   public static final String VERSIONS = "versions";
-  /** 异步请求*/
-  public static final String ASYN = "asyn";
 }

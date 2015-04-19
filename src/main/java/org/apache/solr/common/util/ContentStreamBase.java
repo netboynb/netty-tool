@@ -27,6 +27,7 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
@@ -37,7 +38,7 @@ import java.util.Locale;
  */
 public abstract class ContentStreamBase implements ContentStream
 {
-  public static final String DEFAULT_CHARSET = "utf-8";
+  public static final String DEFAULT_CHARSET = StandardCharsets.UTF_8.name();
   
   protected String name;
   protected String sourceInfo;
@@ -106,6 +107,7 @@ public abstract class ContentStreamBase implements ContentStream
     @Override
     public String getContentType() {
       if(contentType==null) {
+        // TODO: this is buggy... does not allow for whitespace, JSON comments, etc.
         InputStream stream = null;
         try {
           stream = new FileInputStream(file);
@@ -139,29 +141,40 @@ public abstract class ContentStreamBase implements ContentStream
   public static class StringStream extends ContentStreamBase
   {
     private final String str;
-    
+
     public StringStream( String str ) {
-      this.str = str; 
-      
-      contentType = null;
+      this(str, detect(str));
+    }
+
+    public StringStream( String str, String contentType ) {
+      this.str = str;
+      this.contentType = contentType;
       name = null;
       size = new Long( str.length() );
       sourceInfo = "string";
     }
 
-    @Override
-    public String getContentType() {
-      if(contentType==null && str.length() > 0) {
-        char first = str.charAt(0);
-        if(first == '<') {
-          return "application/xml";
+    public static String detect(String str) {
+      String detectedContentType = null;
+      int lim = str.length() - 1;
+      for (int i=0; i<lim; i++) {
+        char ch = str.charAt(i);
+        if (Character.isWhitespace(ch)) {
+          continue;
         }
-        if(first == '{') {
-          return "application/json";
+        // first non-whitespace chars
+        if (ch == '#'                         // single line comment
+            || (ch == '/' && (str.charAt(i + 1) == '/' || str.charAt(i + 1) == '*'))  // single line or multi-line comment
+            || (ch == '{' || ch == '[')       // start of JSON object
+            )
+        {
+          detectedContentType = "application/json";
+        } else if (ch == '<') {
+          detectedContentType = "text/xml";
         }
-        // find a comma? for CSV?
+        break;
       }
-      return contentType;
+      return detectedContentType;
     }
 
     @Override
@@ -233,4 +246,27 @@ public abstract class ContentStreamBase implements ContentStream
   public void setSourceInfo(String sourceInfo) {
     this.sourceInfo = sourceInfo;
   }
+  
+  /**
+   * Construct a <code>ContentStream</code> from a <code>File</code>
+   */
+  public static class ByteArrayStream extends ContentStreamBase
+  {
+    private final byte[] bytes;
+    
+    public ByteArrayStream( byte[] bytes, String source ) {
+      this.bytes = bytes; 
+      
+      this.contentType = null;
+      name = source;
+      size = new Long(bytes.length);
+      sourceInfo = source;
+    }
+
+
+    @Override
+    public InputStream getStream() throws IOException {
+      return new ByteArrayInputStream( bytes );
+    }
+  }  
 }

@@ -17,9 +17,8 @@
 
 package org.apache.solr.client.solrj.request;
 
+import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrRequest;
-import org.apache.solr.client.solrj.SolrServer;
-import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.DocumentAnalysisResponse;
 import org.apache.solr.client.solrj.util.ClientUtils;
 import org.apache.solr.common.SolrInputDocument;
@@ -39,9 +38,9 @@ import java.util.List;
  *
  * @since solr 1.4
  */
-public class DocumentAnalysisRequest extends SolrRequest {
+public class DocumentAnalysisRequest extends SolrRequest<DocumentAnalysisResponse> {
 
-  private List<SolrInputDocument> documents = new ArrayList<SolrInputDocument>();
+  private List<SolrInputDocument> documents = new ArrayList<>();
   private String query;
   private boolean showMatch = false;
 
@@ -69,6 +68,11 @@ public class DocumentAnalysisRequest extends SolrRequest {
     return ClientUtils.toContentStreams(getXML(), ClientUtils.TEXT_XML);
   }
 
+  @Override
+  protected DocumentAnalysisResponse createResponse(SolrClient client) {
+    return new DocumentAnalysisResponse();
+  }
+
   /**
    * {@inheritDoc}
    */
@@ -80,18 +84,6 @@ public class DocumentAnalysisRequest extends SolrRequest {
       params.add(AnalysisParams.SHOW_MATCH, String.valueOf(showMatch));
     }
     return params;
-  }
-
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public DocumentAnalysisResponse process(SolrServer server) throws SolrServerException, IOException {
-    long startTime = System.currentTimeMillis();
-    DocumentAnalysisResponse res = new DocumentAnalysisResponse();
-    res.setResponse(server.request(this));
-    res.setElapsedTime(System.currentTimeMillis() - startTime);
-    return res;
   }
 
   //================================================ Helper Methods ==================================================

@@ -20,7 +20,9 @@ import org.apache.solr.common.util.NamedList;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,12 +39,16 @@ public class FieldStatsInfo implements Serializable {
   Object max;
   Object sum;
   Long count;
+  Long countDistinct;
+  Collection<Object> distinctValues;
   Long missing;
   Object mean = null;
   Double sumOfSquares = null;
   Double stddev = null;
   
   Map<String,List<FieldStatsInfo>> facets;
+  
+  Map<Double, Double> percentiles;
   
   public FieldStatsInfo( NamedList<Object> nl, String fname )
   {
@@ -61,6 +67,12 @@ public class FieldStatsInfo implements Serializable {
       else if( "count".equals( entry.getKey() ) ) {
         count = (Long)entry.getValue();
       }
+      else if ("countDistinct".equals(entry.getKey())) {
+        countDistinct = (Long) entry.getValue();
+      }
+      else if ("distinctValues".equals(entry.getKey())) {
+        distinctValues = (Collection<Object>) entry.getValue();
+      }
       else if( "missing".equals( entry.getKey() ) ) {
         missing = (Long)entry.getValue();
       }
@@ -76,9 +88,9 @@ public class FieldStatsInfo implements Serializable {
       else if( "facets".equals( entry.getKey() ) ) {
         @SuppressWarnings("unchecked")
         NamedList<Object> fields = (NamedList<Object>)entry.getValue();
-        facets = new HashMap<String, List<FieldStatsInfo>>();
+        facets = new HashMap<>();
         for( Map.Entry<String, Object> ev : fields ) {
-          List<FieldStatsInfo> vals = new ArrayList<FieldStatsInfo>();
+          List<FieldStatsInfo> vals = new ArrayList<>();
           facets.put( ev.getKey(), vals );
           @SuppressWarnings("unchecked")
           NamedList<NamedList<Object>> vnl = (NamedList<NamedList<Object>>) ev.getValue();
@@ -86,6 +98,13 @@ public class FieldStatsInfo implements Serializable {
             String n = vnl.getName(i);
             vals.add( new FieldStatsInfo( vnl.getVal(i), n ) );
           }
+        }
+      } else if ( "percentiles".equals( entry.getKey() ) ){
+        @SuppressWarnings("unchecked")
+        NamedList<Object> fields = (NamedList<Object>) entry.getValue();
+        percentiles = new LinkedHashMap<>();
+        for( Map.Entry<String, Object> ev : fields ) {
+          percentiles.put(Double.parseDouble(ev.getKey()), (Double)ev.getValue());
         }
       }
       else {
@@ -112,6 +131,12 @@ public class FieldStatsInfo implements Serializable {
     if( count != null ) {
       sb.append( " count:").append( count );
     }
+    if (countDistinct != null) {
+      sb.append(" countDistinct:").append(countDistinct);
+    }
+    if (distinctValues != null) {
+      sb.append(" distinctValues:").append(distinctValues);
+    }
     if( missing != null ) {
       sb.append( " missing:").append( missing );
     }
@@ -121,6 +146,10 @@ public class FieldStatsInfo implements Serializable {
     if( stddev != null ) {
       sb.append( " stddev:").append(stddev);
     }
+    if( percentiles != null ) {
+      sb.append( " percentiles:").append(percentiles);
+    }
+    
     sb.append( " }" );
     return sb.toString();
   }
@@ -140,9 +169,17 @@ public class FieldStatsInfo implements Serializable {
   public Object getSum() {
     return sum;
   }
-
+     
   public Long getCount() {
     return count;
+  }
+
+  public Long getCountDistinct() {
+    return countDistinct;
+  }
+
+  public Collection<Object> getDistinctValues() {
+    return distinctValues;
   }
 
   public Long getMissing() {
@@ -157,8 +194,19 @@ public class FieldStatsInfo implements Serializable {
     return stddev;
   }
 
+  public Double getSumOfSquares() {
+    return sumOfSquares;
+  }
+
   public Map<String, List<FieldStatsInfo>> getFacets() {
     return facets;
   }
   
+  /**
+   * The percentiles requested if any, otherwise null.  If non-null then the
+   * iteration order will match the order the percentiles were originally specified in.
+   */
+  public Map<Double, Double> getPercentiles() {
+    return percentiles;
+  }
 }
