@@ -17,8 +17,9 @@
 
 package org.apache.solr.client.solrj.request;
 
-import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrRequest;
+import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.FieldAnalysisResponse;
 import org.apache.solr.common.params.AnalysisParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A request for the org.apache.solr.handler.FieldAnalysisRequestHandler.
@@ -36,7 +38,7 @@ import java.util.List;
  *
  * @since solr.14
  */
-public class FieldAnalysisRequest extends SolrRequest<FieldAnalysisResponse> {
+public class FieldAnalysisRequest extends SolrRequest {
 
   private String fieldValue;
   private String query;
@@ -68,17 +70,6 @@ public class FieldAnalysisRequest extends SolrRequest<FieldAnalysisResponse> {
     return null;
   }
 
-  @Override
-  protected FieldAnalysisResponse createResponse(SolrClient client) {
-    if (fieldTypes == null && fieldNames == null) {
-      throw new IllegalStateException("At least one field type or field name need to be specified");
-    }
-    if (fieldValue == null) {
-      throw new IllegalStateException("The field value must be set");
-    }
-    return new FieldAnalysisResponse();
-  }
-
   /**
    * {@inheritDoc}
    */
@@ -100,6 +91,26 @@ public class FieldAnalysisRequest extends SolrRequest<FieldAnalysisResponse> {
     }
     return params;
   }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public FieldAnalysisResponse process(SolrClient server) throws SolrServerException, IOException {
+    if (fieldTypes == null && fieldNames == null) {
+      throw new IllegalStateException("At least one field type or field name need to be specified");
+    }
+    if (fieldValue == null) {
+      throw new IllegalStateException("The field value must be set");
+    }
+    long startTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    FieldAnalysisResponse res = new FieldAnalysisResponse();
+    res.setResponse(server.request(this));
+    long endTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    res.setElapsedTime(endTime - startTime);
+    return res;
+  }
+
 
   //================================================ Helper Methods ==================================================
 

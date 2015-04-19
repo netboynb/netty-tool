@@ -86,7 +86,7 @@ public class QueryResponse extends SolrResponseBase
 
   // utility variable used for automatic binding -- it should not be serialized
   private transient final SolrClient solrClient;
-
+  
   public QueryResponse(){
     solrClient = null;
   }
@@ -96,10 +96,6 @@ public class QueryResponse extends SolrResponseBase
    */
   public QueryResponse( NamedList<Object> res , SolrClient solrClient){
     this.setResponse( res );
-    this.solrClient = solrClient;
-  }
-
-  public QueryResponse(SolrClient solrClient) {
     this.solrClient = solrClient;
   }
 
@@ -134,8 +130,7 @@ public class QueryResponse extends SolrResponseBase
         extractGroupedInfo( _groupedInfo );
       }
       else if("expanded".equals(n)) {
-        NamedList map = (NamedList) res.getVal(i);
-        _expandedResults = map.asMap(1);
+        _expandedResults = (Map<String, SolrDocumentList>) res.getVal( i );
       }
       else if( "highlighting".equals( n ) ) {
         _highlightingInfo = (NamedList<Object>) res.getVal( i );
@@ -481,13 +476,7 @@ public class QueryResponse extends SolrResponseBase
     return _facetQuery;
   }
 
-  /**
-   *
-   * @return map with each group value as key and the expanded documents that belong to the group as value.
-   * There is no guarantee on the order of the keys obtained via an iterator.
-   *
-   */
-  public Map<String, SolrDocumentList> getExpandedResults() {
+  public Map<String, SolrDocumentList> getExpandedResults(){
     return this._expandedResults;
   }
 

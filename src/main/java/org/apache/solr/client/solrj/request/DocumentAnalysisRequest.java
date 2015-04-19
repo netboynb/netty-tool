@@ -17,8 +17,9 @@
 
 package org.apache.solr.client.solrj.request;
 
-import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrRequest;
+import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.DocumentAnalysisResponse;
 import org.apache.solr.client.solrj.util.ClientUtils;
 import org.apache.solr.common.SolrInputDocument;
@@ -31,6 +32,7 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A request for the org.apache.solr.handler.DocumentAnalysisRequestHandler.
@@ -38,7 +40,7 @@ import java.util.List;
  *
  * @since solr 1.4
  */
-public class DocumentAnalysisRequest extends SolrRequest<DocumentAnalysisResponse> {
+public class DocumentAnalysisRequest extends SolrRequest {
 
   private List<SolrInputDocument> documents = new ArrayList<>();
   private String query;
@@ -68,11 +70,6 @@ public class DocumentAnalysisRequest extends SolrRequest<DocumentAnalysisRespons
     return ClientUtils.toContentStreams(getXML(), ClientUtils.TEXT_XML);
   }
 
-  @Override
-  protected DocumentAnalysisResponse createResponse(SolrClient client) {
-    return new DocumentAnalysisResponse();
-  }
-
   /**
    * {@inheritDoc}
    */
@@ -84,6 +81,19 @@ public class DocumentAnalysisRequest extends SolrRequest<DocumentAnalysisRespons
       params.add(AnalysisParams.SHOW_MATCH, String.valueOf(showMatch));
     }
     return params;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public DocumentAnalysisResponse process(SolrClient client) throws SolrServerException, IOException {
+    long startTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    DocumentAnalysisResponse res = new DocumentAnalysisResponse();
+    res.setResponse(client.request(this));
+    long endTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    res.setElapsedTime(endTime - startTime);
+    return res;
   }
 
   //================================================ Helper Methods ==================================================

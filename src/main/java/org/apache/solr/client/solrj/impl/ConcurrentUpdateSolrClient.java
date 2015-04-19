@@ -36,13 +36,10 @@ import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.params.UpdateParams;
-import org.apache.solr.common.util.ExecutorUtil;
-import org.apache.solr.common.util.IOUtils;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SolrjNamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -105,7 +102,7 @@ public class ConcurrentUpdateSolrClient extends SolrClient {
   
   public ConcurrentUpdateSolrClient(String solrServerUrl,
                                     HttpClient client, int queueSize, int threadCount) {
-    this(solrServerUrl, client, queueSize, threadCount, ExecutorUtil.newMDCAwareCachedThreadPool(
+    this(solrServerUrl, client, queueSize, threadCount, Executors.newCachedThreadPool(
         new SolrjNamedThreadFactory("concurrentUpdateScheduler")));
     shutdownExecutor = true;
   }
@@ -293,10 +290,10 @@ public class ConcurrentUpdateSolrClient extends SolrClient {
   }
 
   @Override
-  public NamedList<Object> request(final SolrRequest request, String collection)
+  public NamedList<Object> request(final SolrRequest request)
       throws SolrServerException, IOException {
     if (!(request instanceof UpdateRequest)) {
-      return client.request(request, collection);
+      return client.request(request);
     }
     UpdateRequest req = (UpdateRequest) request;
 
@@ -307,13 +304,13 @@ public class ConcurrentUpdateSolrClient extends SolrClient {
           && (req.getDeleteByIdMap() == null || req.getDeleteByIdMap().isEmpty())) {
         if (req.getDeleteQuery() == null) {
           blockUntilFinished();
-          return client.request(request, collection);
+          return client.request(request);
         }
       }
     } else {
       if ((req.getDocuments() == null || req.getDocuments().isEmpty())) {
         blockUntilFinished();
-        return client.request(request, collection);
+        return client.request(request);
       }
     }
 
@@ -324,7 +321,7 @@ public class ConcurrentUpdateSolrClient extends SolrClient {
       if (params.getBool(UpdateParams.WAIT_SEARCHER, false)) {
         log.info("blocking for commit/optimize");
         blockUntilFinished(); // empty the queue
-        return client.request(request, collection);
+        return client.request(request);
       }
     }
 
@@ -344,14 +341,9 @@ public class ConcurrentUpdateSolrClient extends SolrClient {
           if (runners.isEmpty() || (queue.remainingCapacity() < queue.size() && runners.size() < threadCount))
           {
             // We need more runners, so start a new one.
-            MDC.put("ConcurrentUpdateSolrClient.url", client.getBaseURL());
-            try {
-              Runner r = new Runner();
-              runners.add(r);
-              scheduler.execute(r);
-            } finally {
-              MDC.remove("ConcurrentUpdateSolrClient.url");
-            }
+            Runner r = new Runner();
+            runners.add(r);
+            scheduler.execute(r);
           } else {
             // break out of the retry loop if we added the element to the queue
             // successfully, *and*
@@ -408,14 +400,9 @@ public class ConcurrentUpdateSolrClient extends SolrClient {
           if (queueSize > 0) {
             log.warn("No more runners, but queue still has "+
               queueSize+" adding more runners to process remaining requests on queue");
-            MDC.put("ConcurrentUpdateSolrClient.url", client.getBaseURL());
-            try {
-              Runner r = new Runner();
-              runners.add(r);
-              scheduler.execute(r);
-            } finally {
-              MDC.remove("ConcurrentUpdateSolrClient.url");
-            }
+            Runner r = new Runner();
+            runners.add(r);
+            scheduler.execute(r);
           }
         }
       }
@@ -437,12 +424,6 @@ public class ConcurrentUpdateSolrClient extends SolrClient {
   }
 
   @Override
-  public void close() {
-    shutdown();
-  }
-
-  @Override
-  @Deprecated
   public void shutdown() {
     client.shutdown();
     if (shutdownExecutor) {

@@ -35,11 +35,6 @@ public interface TermVectorParams {
   * */
   public static final String POSITIONS = TV_PREFIX + "positions";
   /**
-  * Return Term Vector payloads information
-  *
-  * */
-  public static final String PAYLOADS = TV_PREFIX + "payloads";
-  /**
   * Return offset information, if available
   * */
   public static final String OFFSETS = TV_PREFIX + "offsets";

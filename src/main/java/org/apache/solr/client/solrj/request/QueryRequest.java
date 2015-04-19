@@ -17,22 +17,25 @@
 
 package org.apache.solr.client.solrj.request;
 
-import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrRequest;
+import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.common.SolrException;
 import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.ContentStream;
 
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 
  *
  * @since solr 1.3
  */
-public class QueryRequest extends SolrRequest<QueryResponse> {
-
+public class QueryRequest extends SolrRequest
+{
   private SolrParams query;
   
   public QueryRequest()
@@ -76,14 +79,26 @@ public class QueryRequest extends SolrRequest<QueryResponse> {
   }
 
   @Override
-  protected QueryResponse createResponse(SolrClient client) {
-    return new QueryResponse(client);
-  }
-
-  @Override
   public SolrParams getParams() {
     return query;
   }
 
+  @Override
+  public QueryResponse process( SolrClient client ) throws SolrServerException
+  {
+    try {
+      long startTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+      QueryResponse res = new QueryResponse( client.request( this ), client );
+      long endTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+      res.setElapsedTime(endTime - startTime);
+      return res;
+    } catch (SolrServerException e){
+      throw e;
+    } catch (SolrException s){
+      throw s;
+    } catch (Exception e) {
+      throw new SolrServerException("Error executing query", e);
+    }
+  }
 }
 

@@ -16,18 +16,22 @@ package org.apache.solr.client.solrj.request;
  * limitations under the License.
  */
 
-import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrRequest;
+import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.UpdateResponse;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.UpdateParams;
+
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 
 /**
  *
  *
  **/
-public abstract class AbstractUpdateRequest extends SolrRequest<UpdateResponse> implements IsUpdateRequest {
+public abstract class AbstractUpdateRequest extends SolrRequest implements IsUpdateRequest {
   protected ModifiableSolrParams params;
   protected int commitWithin = -1;
 
@@ -113,8 +117,14 @@ public abstract class AbstractUpdateRequest extends SolrRequest<UpdateResponse> 
   }
 
   @Override
-  protected UpdateResponse createResponse(SolrClient client) {
-    return new UpdateResponse();
+  public UpdateResponse process(SolrClient client) throws SolrServerException, IOException
+  {
+    long startTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    UpdateResponse res = new UpdateResponse();
+    res.setResponse(client.request(this));
+    long endTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    res.setElapsedTime(endTime - startTime);
+    return res;
   }
 
   public boolean isWaitSearcher() {

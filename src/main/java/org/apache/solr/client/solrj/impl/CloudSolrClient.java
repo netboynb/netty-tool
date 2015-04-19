@@ -17,28 +17,6 @@ package org.apache.solr.client.solrj.impl;
  * limitations under the License.
  */
 
-import java.io.IOException;
-import java.net.ConnectException;
-import java.net.SocketException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
 import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.conn.ConnectTimeoutException;
@@ -68,7 +46,6 @@ import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.ShardParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.params.UpdateParams;
-import org.apache.solr.common.util.ExecutorUtil;
 import org.apache.solr.common.util.Hash;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SolrjNamedThreadFactory;
@@ -76,7 +53,27 @@ import org.apache.solr.common.util.StrUtils;
 import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
+
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 
 /**
  * SolrJ client class to communicate with SolrCloud.
@@ -90,7 +87,6 @@ import org.slf4j.MDC;
  */
 @SuppressWarnings("serial")
 public class CloudSolrClient extends SolrClient {
-
   protected static final Logger log = LoggerFactory.getLogger(CloudSolrClient.class);
 
   private volatile ZkStateReader zkStateReader;
@@ -108,9 +104,9 @@ public class CloudSolrClient extends SolrClient {
   
   private final boolean updatesToLeaders;
   private boolean parallelUpdates = true;
-  private ExecutorService threadPool = ExecutorUtil
-      .newMDCAwareCachedThreadPool(new SolrjNamedThreadFactory(
-          "CloudSolrClient ThreadPool"));
+  private ExecutorService threadPool = Executors
+      .newCachedThreadPool(new SolrjNamedThreadFactory(
+          "CloudSolrServer ThreadPool"));
   private String idField = "id";
   public static final String STATE_VERSION = "_stateVer_";
   private final Set<String> NON_ROUTABLE_PARAMS;
@@ -175,11 +171,11 @@ public class CloudSolrClient extends SolrClient {
    *          that starts with a forward slash. Using a chroot allows multiple
    *          applications to coexist in one ensemble. For full details, see the
    *          Zookeeper documentation. Some examples:
-   *          <p>
+   *          <p/>
    *          "host1:2181"
-   *          <p>
+   *          <p/>
    *          "host1:2181,host2:2181,host3:2181/mysolrchroot"
-   *          <p>
+   *          <p/>
    *          "zoo1.example.com:2181,zoo2.example.com:2181,zoo3.example.com:2181"
    */
   public CloudSolrClient(String zkHost) {
@@ -207,11 +203,11 @@ public class CloudSolrClient extends SolrClient {
    *          that starts with a forward slash. Using a chroot allows multiple
    *          applications to coexist in one ensemble. For full details, see the
    *          Zookeeper documentation. Some examples:
-   *          <p>
+   *          <p/>
    *          "host1:2181"
-   *          <p>
+   *          <p/>
    *          "host1:2181,host2:2181,host3:2181/mysolrchroot"
-   *          <p>
+   *          <p/>
    *          "zoo1.example.com:2181,zoo2.example.com:2181,zoo3.example.com:2181"
    * @param httpClient
    *          the {@link HttpClient} instance to be used for all requests. The
@@ -455,16 +451,27 @@ public class CloudSolrClient extends SolrClient {
         if (zkStateReader == null) {
           ZkStateReader zk = null;
           try {
-            zk = new ZkStateReader(zkHost, zkClientTimeout, zkConnectTimeout);
+            zk = new ZkStateReader(zkHost, zkClientTimeout,
+                zkConnectTimeout);
             zk.createClusterStateWatchersAndUpdate();
             zkStateReader = zk;
           } catch (InterruptedException e) {
-            zk.close();
+            if (zk != null) zk.close();
             Thread.currentThread().interrupt();
-            throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR, "", e);
+            throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR,
+                "", e);
           } catch (KeeperException e) {
-            zk.close();
-            throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR, "", e);
+            if (zk != null) zk.close();
+            throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR,
+                "", e);
+          } catch (IOException e) {
+            if (zk != null) zk.close();
+            throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR,
+                "", e);
+          } catch (TimeoutException e) {
+            if (zk != null) zk.close();
+            throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR,
+                "", e);
           } catch (Exception e) {
             if (zk != null) zk.close();
             // do not wrap because clients may be relying on the underlying exception being thrown
@@ -475,62 +482,11 @@ public class CloudSolrClient extends SolrClient {
     }
   }
 
-  /**
-   * Connect to a cluster.  If the cluster is not ready, retry connection up to a given timeout.
-   * @param duration the timeout
-   * @param timeUnit the units of the timeout
-   * @throws TimeoutException if the cluster is not ready after the timeout
-   * @throws InterruptedException if the wait is interrupted
-   */
-  public void connect(long duration, TimeUnit timeUnit) throws TimeoutException, InterruptedException {
-    log.info("Waiting for {} {} for cluster at {} to be ready", duration, timeUnit, zkHost);
-    long timeout = System.nanoTime() + timeUnit.toNanos(duration);
-    while (System.nanoTime() < timeout) {
-      try {
-        connect();
-        log.info("Cluster at {} ready", zkHost);
-        return;
-      }
-      catch (RuntimeException e) {
-        // not ready yet, then...
-      }
-      TimeUnit.MILLISECONDS.sleep(250);
-    }
-    throw new TimeoutException("Timed out waiting for cluster");
-  }
-
   public void setParallelUpdates(boolean parallelUpdates) {
     this.parallelUpdates = parallelUpdates;
   }
 
-  /**
-   * Upload a set of config files to Zookeeper and give it a name
-   *
-   * NOTE: You should only allow trusted users to upload configs.  If you
-   * are allowing client access to zookeeper, you should protect the
-   * /configs node against unauthorised write access.
-   *
-   * @param configPath {@link java.nio.file.Path} to the config files
-   * @param configName the name of the config
-   * @throws IOException if an IO error occurs
-   */
-  public void uploadConfig(Path configPath, String configName) throws IOException {
-    connect();
-    zkStateReader.getConfigManager().uploadConfigDir(configPath, configName);
-  }
-
-  /**
-   * Download a named config from Zookeeper to a location on the filesystem
-   * @param configName    the name of the config
-   * @param downloadPath  the path to write config files to
-   * @throws IOException  if an I/O exception occurs
-   */
-  public void downloadConfig(String configName, Path downloadPath) throws IOException {
-    connect();
-    zkStateReader.getConfigManager().downloadConfigDir(configName, downloadPath);
-  }
-
-  private NamedList<Object> directUpdate(AbstractUpdateRequest request, String collection, ClusterState clusterState) throws SolrServerException {
+  private NamedList<Object> directUpdate(AbstractUpdateRequest request, ClusterState clusterState) throws SolrServerException {
     UpdateRequest updateRequest = (UpdateRequest) request;
     ModifiableSolrParams params = (ModifiableSolrParams) request.getParams();
     ModifiableSolrParams routableParams = new ModifiableSolrParams();
@@ -544,6 +500,7 @@ public class CloudSolrClient extends SolrClient {
       }
     }
 
+    String collection = nonRoutableParams.get(UpdateParams.COLLECTION, defaultCollection);
     if (collection == null) {
       throw new SolrServerException("No collection param specified on request and no default collection has been set.");
     }
@@ -558,7 +515,7 @@ public class CloudSolrClient extends SolrClient {
       }
     }
 
-    DocCollection col = getDocCollection(clusterState, collection,null);
+    DocCollection col = getDocCollection(clusterState, collection);
 
     DocRouter router = col.getRouter();
     
@@ -591,17 +548,12 @@ public class CloudSolrClient extends SolrClient {
       for (final Map.Entry<String, LBHttpSolrClient.Req> entry : routes.entrySet()) {
         final String url = entry.getKey();
         final LBHttpSolrClient.Req lbRequest = entry.getValue();
-        try {
-          MDC.put("CloudSolrClient.url", url);
-          responseFutures.put(url, threadPool.submit(new Callable<NamedList<?>>() {
-            @Override
-            public NamedList<?> call() throws Exception {
-              return lbClient.request(lbRequest).getResponse();
-            }
-          }));
-        } finally {
-          MDC.remove("CloudSolrClient.url");
-        }
+        responseFutures.put(url, threadPool.submit(new Callable<NamedList<?>>() {
+          @Override
+          public NamedList<?> call() throws Exception {
+            return lbClient.request(lbRequest).getResponse();
+          }
+        }));
       }
 
       for (final Map.Entry<String, Future<NamedList<?>>> entry: responseFutures.entrySet()) {
@@ -780,11 +732,9 @@ public class CloudSolrClient extends SolrClient {
   }
 
   @Override
-  public NamedList<Object> request(SolrRequest request, String collection) throws SolrServerException, IOException {
+  public NamedList<Object> request(SolrRequest request) throws SolrServerException, IOException {
     SolrParams reqParams = request.getParams();
-
-    if (collection == null)
-      collection = (reqParams != null) ? reqParams.get("collection", getDefaultCollection()) : getDefaultCollection();
+    String collection = (reqParams != null) ? reqParams.get("collection", getDefaultCollection()) : getDefaultCollection();
     return requestWithRetryOnStaleState(request, 0, collection);
   }
 
@@ -810,7 +760,7 @@ public class CloudSolrClient extends SolrClient {
       StringBuilder stateVerParamBuilder = null;
       for (String requestedCollection : requestedCollectionNames) {
         // track the version of state we're using on the client side using the _stateVer_ param
-        DocCollection coll = getDocCollection(getZkStateReader().getClusterState(), requestedCollection,null);
+        DocCollection coll = getDocCollection(getZkStateReader().getClusterState(), requestedCollection);
         int collVer = coll.getZNodeVersion();
         if (coll.getStateFormat()>1) {
           if(requestedCollections == null) requestedCollections = new ArrayList<>(requestedCollectionNames.size());
@@ -842,19 +792,7 @@ public class CloudSolrClient extends SolrClient {
 
     NamedList<Object> resp = null;
     try {
-      resp = sendRequest(request, collection);
-      //to avoid an O(n) operation we always add STATE_VERSION to the last and try to read it from there
-      Object o = resp.get(STATE_VERSION, resp.size()-1);
-      if(o != null && o instanceof Map) {
-        //remove this because no one else needs this and tests would fail if they are comparing responses
-        resp.remove(resp.size()-1);
-        Map invalidStates = (Map) o;
-        for (Object invalidEntries : invalidStates.entrySet()) {
-          Map.Entry e = (Map.Entry) invalidEntries;
-          getDocCollection(getZkStateReader().getClusterState(),(String)e.getKey(), (Integer)e.getValue());
-        }
-
-      }
+      resp = sendRequest(request);
     } catch (Exception exc) {
 
       Throwable rootCause = SolrException.getRootCause(exc);
@@ -908,7 +846,7 @@ public class CloudSolrClient extends SolrClient {
           !requestedCollections.isEmpty() &&
           wasCommError) {
         for (DocCollection ext : requestedCollections) {
-          DocCollection latestStateFromZk = getDocCollection(zkStateReader.getClusterState(), ext.getName(),null);
+          DocCollection latestStateFromZk = getDocCollection(zkStateReader.getClusterState(), ext.getName());
           if (latestStateFromZk.getZNodeVersion() != ext.getZNodeVersion()) {
             // looks like we couldn't reach the server because the state was stale == retry
             stateWasStale = true;
@@ -940,7 +878,7 @@ public class CloudSolrClient extends SolrClient {
     return resp;
   }
 
-  protected NamedList<Object> sendRequest(SolrRequest request, String collection)
+  protected NamedList<Object> sendRequest(SolrRequest request)
       throws SolrServerException, IOException {
     connect();
     
@@ -951,7 +889,8 @@ public class CloudSolrClient extends SolrClient {
     
     if (request instanceof IsUpdateRequest) {
       if (request instanceof UpdateRequest) {
-        NamedList<Object> response = directUpdate((AbstractUpdateRequest) request, collection, clusterState);
+        NamedList<Object> response = directUpdate((AbstractUpdateRequest) request,
+            clusterState);
         if (response != null) {
           return response;
         }
@@ -972,6 +911,7 @@ public class CloudSolrClient extends SolrClient {
         theUrlList.add(zkStateReader.getBaseUrlForNodeName(liveNode));
       }
     } else {
+      String collection = reqParams.get(UpdateParams.COLLECTION, defaultCollection);
       
       if (collection == null) {
         throw new SolrServerException(
@@ -995,7 +935,7 @@ public class CloudSolrClient extends SolrClient {
       // add it to the Map of slices.
       Map<String,Slice> slices = new HashMap<>();
       for (String collectionName : collectionNames) {
-        DocCollection col = getDocCollection(clusterState, collectionName, null);
+        DocCollection col = getDocCollection(clusterState, collectionName);
         Collection<Slice> routeSlices = col.getRouter().getSearchSlices(shardKeys, reqParams , col);
         ClientUtils.addSlices(slices, collectionName, routeSlices, true);
       }
@@ -1014,20 +954,24 @@ public class CloudSolrClient extends SolrClient {
           ZkCoreNodeProps coreNodeProps = new ZkCoreNodeProps(nodeProps);
           String node = coreNodeProps.getNodeName();
           if (!liveNodes.contains(coreNodeProps.getNodeName())
-              || Replica.State.getState(coreNodeProps.getState()) != Replica.State.ACTIVE) continue;
+              || !coreNodeProps.getState().equals(ZkStateReader.ACTIVE)) continue;
           if (nodes.put(node, nodeProps) == null) {
-            if (!sendToLeaders || coreNodeProps.isLeader()) {
+            if (!sendToLeaders || (sendToLeaders && coreNodeProps.isLeader())) {
               String url;
               if (reqParams.get(UpdateParams.COLLECTION) == null) {
-                url = ZkCoreNodeProps.getCoreUrl(nodeProps.getStr(ZkStateReader.BASE_URL_PROP), collection);
+                url = ZkCoreNodeProps.getCoreUrl(
+                    nodeProps.getStr(ZkStateReader.BASE_URL_PROP),
+                    defaultCollection);
               } else {
                 url = coreNodeProps.getCoreUrl();
               }
               urlList2.add(url);
-            } else {
+            } else if (sendToLeaders) {
               String url;
               if (reqParams.get(UpdateParams.COLLECTION) == null) {
-                url = ZkCoreNodeProps.getCoreUrl(nodeProps.getStr(ZkStateReader.BASE_URL_PROP), collection);
+                url = ZkCoreNodeProps.getCoreUrl(
+                    nodeProps.getStr(ZkStateReader.BASE_URL_PROP),
+                    defaultCollection);
               } else {
                 url = coreNodeProps.getCoreUrl();
               }
@@ -1068,7 +1012,7 @@ public class CloudSolrClient extends SolrClient {
       }
       
     }
-
+    
     LBHttpSolrClient.Req req = new LBHttpSolrClient.Req(request, theUrlList);
     LBHttpSolrClient.Rsp rsp = lbClient.request(req);
     return rsp.getResponse();
@@ -1099,12 +1043,6 @@ public class CloudSolrClient extends SolrClient {
   }
 
   @Override
-  public void close() throws IOException {
-    shutdown();
-  }
-
-  @Override
-  @Deprecated
   public void shutdown() {
     if (zkStateReader != null) {
       synchronized(this) {
@@ -1147,40 +1085,30 @@ public class CloudSolrClient extends SolrClient {
   }
 
 
-  protected DocCollection getDocCollection(ClusterState clusterState, String collection, Integer expectedVersion) throws SolrException {
-    if (collection == null) return null;
+  protected DocCollection getDocCollection(ClusterState clusterState, String collection) throws SolrException {
+    if(collection == null) return null;
     DocCollection col = getFromCache(collection);
-    if (col != null) {
-      if (expectedVersion == null) return col;
-      if (expectedVersion.intValue() == col.getZNodeVersion()) return col;
-    }
+    if(col != null) return col;
 
     ClusterState.CollectionRef ref = clusterState.getCollectionRef(collection);
-    if (ref == null) {
+    if(ref == null){
       //no such collection exists
       return null;
     }
-    if (!ref.isLazilyLoaded()) {
+    if(!ref.isLazilyLoaded()) {
       //it is readily available just return it
       return ref.get();
     }
     List locks = this.locks;
     final Object lock = locks.get(Math.abs(Hash.murmurhash3_x86_32(collection, 0, collection.length(), 0) % locks.size()));
-    synchronized (lock) {
+    synchronized (lock){
       //we have waited for sometime just check once again
       col = getFromCache(collection);
-      if (col != null) {
-        if (expectedVersion == null) return col;
-        if (expectedVersion.intValue() == col.getZNodeVersion()) {
-          return col;
-        } else {
-          collectionStateCache.remove(collection);
-        }
-      }
-      col = ref.get();//this is a call to ZK
+      if(col !=null) return col;
+      col = ref.get();
     }
-    if (col == null) return null;
-    if (col.getStateFormat() > 1) collectionStateCache.put(collection, new ExpiringCachedDocCollection(col));
+    if(col == null ) return  null;
+    if(col.getStateFormat() >1) collectionStateCache.put(collection, new ExpiringCachedDocCollection(col));
     return col;
   }
 

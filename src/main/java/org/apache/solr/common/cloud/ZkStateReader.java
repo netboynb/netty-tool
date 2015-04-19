@@ -50,6 +50,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class ZkStateReader implements Closeable {
   private static Logger log = LoggerFactory.getLogger(ZkStateReader.class);
@@ -61,7 +62,6 @@ public class ZkStateReader implements Closeable {
   public static final String STATE_PROP = "state";
   public static final String CORE_NAME_PROP = "core";
   public static final String COLLECTION_PROP = "collection";
-  public static final String ELECTION_NODE_PROP = "election_node";
   public static final String SHARD_ID_PROP = "shard";
   public static final String REPLICA_PROP = "replica";
   public static final String SHARD_RANGE_PROP = "shard_range";
@@ -78,13 +78,18 @@ public class ZkStateReader implements Closeable {
   public static final String ALIASES = "/aliases.json";
   public static final String CLUSTER_STATE = "/clusterstate.json";
   public static final String CLUSTER_PROPS = "/clusterprops.json";
-  public static final String REJOIN_AT_HEAD_PROP = "rejoinAtHead";
 
   public static final String REPLICATION_FACTOR = "replicationFactor";
   public static final String MAX_SHARDS_PER_NODE = "maxShardsPerNode";
   public static final String AUTO_ADD_REPLICAS = "autoAddReplicas";
 
   public static final String ROLES = "/roles.json";
+
+  public static final String RECOVERING = "recovering";
+  public static final String RECOVERY_FAILED = "recovery_failed";
+  public static final String ACTIVE = "active";
+  public static final String DOWN = "down";
+  public static final String SYNC = "sync";
 
   public static final String CONFIGS_ZKNODE = "/configs";
   public final static String CONFIGNAME_PROP="configName";
@@ -96,13 +101,10 @@ public class ZkStateReader implements Closeable {
   protected volatile ClusterState clusterState;
 
   private static final long SOLRCLOUD_UPDATE_DELAY = Long.parseLong(System.getProperty("solrcloud.update.delay", "5000"));
-  private static final int GET_LEADER_RETRY_INTERVAL_MS = 50;
-  private static final int GET_LEADER_RETRY_DEFAULT_TIMEOUT = 4000;
 
-  public static final String LEADER_ELECT_ZKNODE = "leader_elect";
+  public static final String LEADER_ELECT_ZKNODE = "/leader_elect";
 
   public static final String SHARD_LEADERS_ZKNODE = "leaders";
-  public static final String ELECTION_NODE = "election";
 
   private final Set<String> watchedCollections = new HashSet<String>();
 
@@ -110,8 +112,6 @@ public class ZkStateReader implements Closeable {
    *
    */
   private Map<String , DocCollection> watchedCollectionStates = new ConcurrentHashMap<String, DocCollection>();
-
-  private final ZkConfigManager configManager;
 
 
   //
@@ -203,11 +203,11 @@ public class ZkStateReader implements Closeable {
 
   private boolean clusterStateUpdateScheduled;
 
-  private final SolrZkClient zkClient;
+  private SolrZkClient zkClient;
   
-  private final boolean closeClient;
+  private boolean closeClient = false;
 
-  private final ZkCmdExecutor cmdExecutor;
+  private ZkCmdExecutor cmdExecutor;
 
   private volatile Aliases aliases = new Aliases();
 
@@ -215,15 +215,16 @@ public class ZkStateReader implements Closeable {
 
   public ZkStateReader(SolrZkClient zkClient) {
     this.zkClient = zkClient;
-    this.cmdExecutor = new ZkCmdExecutor(zkClient.getZkClientTimeout());
-    this.configManager = new ZkConfigManager(zkClient);
-    this.closeClient = false;
+    initZkCmdExecutor(zkClient.getZkClientTimeout());
   }
 
-  public ZkStateReader(String zkServerAddress, int zkClientTimeout, int zkClientConnectTimeout) {
-    this.zkClient = new SolrZkClient(zkServerAddress, zkClientTimeout, zkClientConnectTimeout,
+  public ZkStateReader(String zkServerAddress, int zkClientTimeout, int zkClientConnectTimeout) throws InterruptedException, TimeoutException, IOException {
+    closeClient = true;
+    initZkCmdExecutor(zkClientTimeout);
+    zkClient = new SolrZkClient(zkServerAddress, zkClientTimeout, zkClientConnectTimeout,
         // on reconnect, reload cloud info
         new OnReconnect() {
+
           @Override
           public void command() {
             try {
@@ -238,16 +239,15 @@ public class ZkStateReader implements Closeable {
               log.error("", e);
               throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR,
                   "", e);
-            }
+            } 
+
           }
         });
-    this.cmdExecutor = new ZkCmdExecutor(zkClientTimeout);
-    this.configManager = new ZkConfigManager(zkClient);
-    this.closeClient = true;
   }
-
-  public ZkConfigManager getConfigManager() {
-    return configManager;
+  
+  private void initZkCmdExecutor(int zkClientTimeout) {
+    // we must retry at least as long as the session timeout
+    cmdExecutor = new ZkCmdExecutor(zkClientTimeout);
   }
   
   // load and publish a new CollectionInfo
@@ -264,13 +264,13 @@ public class ZkStateReader implements Closeable {
     return aliases;
   }
 
-  public Integer compareStateVersions(String coll, int version) {
+  public Boolean checkValid(String coll, int version) {
     DocCollection collection = clusterState.getCollectionOrNull(coll);
     if (collection == null) return null;
     if (collection.getZNodeVersion() < version) {
       log.debug("server older than client {}<{}", collection.getZNodeVersion(), version);
       DocCollection nu = getCollectionLive(this, coll);
-      if (nu == null) return -1 ;
+      if (nu == null) return null;
       if (nu.getZNodeVersion() > collection.getZNodeVersion()) {
         updateWatchedCollection(nu);
         collection = nu;
@@ -278,12 +278,12 @@ public class ZkStateReader implements Closeable {
     }
     
     if (collection.getZNodeVersion() == version) {
-      return null;
+      return Boolean.TRUE;
     }
     
     log.debug("wrong version from client {}!={} ", version, collection.getZNodeVersion());
     
-    return collection.getZNodeVersion();
+    return Boolean.FALSE;
   }
   
   public synchronized void createClusterStateWatchersAndUpdate() throws KeeperException,
@@ -291,10 +291,12 @@ public class ZkStateReader implements Closeable {
     // We need to fetch the current cluster state and the set of live nodes
     
     synchronized (getUpdateLock()) {
-
+      cmdExecutor.ensureExists(CLUSTER_STATE, zkClient);
+      cmdExecutor.ensureExists(ALIASES, zkClient);
+      
       log.info("Updating cluster state from ZooKeeper... ");
       
-      Stat stat = zkClient.exists(CLUSTER_STATE, new Watcher() {
+      zkClient.exists(CLUSTER_STATE, new Watcher() {
         
         @Override
         public void process(WatchedEvent event) {
@@ -333,10 +335,6 @@ public class ZkStateReader implements Closeable {
         }
         
       }, true);
-
-      if (stat == null)
-        throw new SolrException(ErrorCode.SERVICE_UNAVAILABLE,
-            "Cannot connect to cluster at " + zkClient.getZkServerAddress() + ": cluster not found/not ready");
     }
    
     
@@ -533,6 +531,7 @@ public class ZkStateReader implements Closeable {
       synchronized (ZkStateReader.this) {
         for (String watchedCollection : watchedCollections) {
           DocCollection live = getCollectionLive(this, watchedCollection);
+          assert live != null;
           if (live != null) {
             updateWatchedCollection(live);
           }
@@ -638,22 +637,12 @@ public class ZkStateReader implements Closeable {
         shard, timeout));
     return props.getCoreUrl();
   }
-
-  public Replica getLeader(String collection, String shard) throws InterruptedException {
-    if (clusterState != null) {
-      Replica replica = clusterState.getLeader(collection, shard);
-      if (replica != null && getClusterState().liveNodesContain(replica.getNodeName())) {
-        return replica;
-      }
-    }
-    return null;
-  }
-
+  
   /**
    * Get shard leader properties, with retry if none exist.
    */
   public Replica getLeaderRetry(String collection, String shard) throws InterruptedException {
-    return getLeaderRetry(collection, shard, GET_LEADER_RETRY_DEFAULT_TIMEOUT);
+    return getLeaderRetry(collection, shard, 4000);
   }
 
   /**
@@ -661,11 +650,14 @@ public class ZkStateReader implements Closeable {
    */
   public Replica getLeaderRetry(String collection, String shard, int timeout) throws InterruptedException {
     long timeoutAt = System.nanoTime() + TimeUnit.NANOSECONDS.convert(timeout, TimeUnit.MILLISECONDS);
-    while (true) {
-      Replica leader = getLeader(collection, shard);
-      if (leader != null) return leader;
-      if (System.nanoTime() >= timeoutAt || closed) break;
-      Thread.sleep(GET_LEADER_RETRY_INTERVAL_MS);
+    while (System.nanoTime() < timeoutAt && !closed) {
+      if (clusterState != null) {    
+        Replica replica = clusterState.getLeader(collection, shard);
+        if (replica != null && getClusterState().liveNodesContain(replica.getNodeName())) {
+          return replica;
+        }
+      }
+      Thread.sleep(50);
     }
     throw new SolrException(ErrorCode.SERVICE_UNAVAILABLE, "No registered leader was found after waiting for "
         + timeout + "ms " + ", collection: " + collection + " slice: " + shard);
@@ -680,27 +672,18 @@ public class ZkStateReader implements Closeable {
         : "");
   }
 
-  /**
-   * Get path where shard leader elections ephemeral nodes are.
-   */
-  public static String getShardLeadersElectPath(String collection, String shardId) {
-    return COLLECTIONS_ZKNODE + "/" + collection + "/"
-        + LEADER_ELECT_ZKNODE  + (shardId != null ? ("/" + shardId + "/" + ELECTION_NODE)
-        : "");
-  }
-
-
-  public List<ZkCoreNodeProps> getReplicaProps(String collection, String shardId, String thisCoreNodeName) {
+  public List<ZkCoreNodeProps> getReplicaProps(String collection,
+      String shardId, String thisCoreNodeName) {
     return getReplicaProps(collection, shardId, thisCoreNodeName, null);
   }
   
-  public List<ZkCoreNodeProps> getReplicaProps(String collection, String shardId, String thisCoreNodeName,
-      Replica.State mustMatchStateFilter) {
+  public List<ZkCoreNodeProps> getReplicaProps(String collection,
+      String shardId, String thisCoreNodeName, String mustMatchStateFilter) {
     return getReplicaProps(collection, shardId, thisCoreNodeName, mustMatchStateFilter, null);
   }
   
-  public List<ZkCoreNodeProps> getReplicaProps(String collection, String shardId, String thisCoreNodeName,
-      Replica.State mustMatchStateFilter, Replica.State mustNotMatchStateFilter) {
+  public List<ZkCoreNodeProps> getReplicaProps(String collection,
+      String shardId, String thisCoreNodeName, String mustMatchStateFilter, String mustNotMatchStateFilter) {
     assert thisCoreNodeName != null;
     ClusterState clusterState = this.clusterState;
     if (clusterState == null) {
@@ -726,8 +709,8 @@ public class ZkStateReader implements Closeable {
       String coreNodeName = entry.getValue().getName();
       
       if (clusterState.liveNodesContain(nodeProps.getNodeName()) && !coreNodeName.equals(thisCoreNodeName)) {
-        if (mustMatchStateFilter == null || mustMatchStateFilter == Replica.State.getState(nodeProps.getState())) {
-          if (mustNotMatchStateFilter == null || mustNotMatchStateFilter != Replica.State.getState(nodeProps.getState())) {
+        if (mustMatchStateFilter == null || mustMatchStateFilter.equals(nodeProps.getState())) {
+          if (mustNotMatchStateFilter == null || !mustNotMatchStateFilter.equals(nodeProps.getState())) {
             nodes.add(nodeProps);
           }
         }
@@ -846,8 +829,8 @@ public class ZkStateReader implements Closeable {
           if (EventType.None.equals(event.getType())) {
             return;
           }
-          log.info("A cluster state change: {} for collection {} has occurred - updating... (live nodes size: {})",
-              (event), coll, ZkStateReader.this.clusterState == null ? 0
+          log.info("A cluster state change: {}, has occurred - updating... ",
+              (event), ZkStateReader.this.clusterState == null ? 0
                   : ZkStateReader.this.clusterState.getLiveNodes().size());
           try {
             

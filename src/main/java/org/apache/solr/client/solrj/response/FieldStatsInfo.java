@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -47,8 +46,6 @@ public class FieldStatsInfo implements Serializable {
   Double stddev = null;
   
   Map<String,List<FieldStatsInfo>> facets;
-  
-  Map<Double, Double> percentiles;
   
   public FieldStatsInfo( NamedList<Object> nl, String fname )
   {
@@ -99,13 +96,6 @@ public class FieldStatsInfo implements Serializable {
             vals.add( new FieldStatsInfo( vnl.getVal(i), n ) );
           }
         }
-      } else if ( "percentiles".equals( entry.getKey() ) ){
-        @SuppressWarnings("unchecked")
-        NamedList<Object> fields = (NamedList<Object>) entry.getValue();
-        percentiles = new LinkedHashMap<>();
-        for( Map.Entry<String, Object> ev : fields ) {
-          percentiles.put(Double.parseDouble(ev.getKey()), (Double)ev.getValue());
-        }
       }
       else {
         throw new RuntimeException( "unknown key: "+entry.getKey() + " ["+entry.getValue()+"]" );
@@ -146,10 +136,6 @@ public class FieldStatsInfo implements Serializable {
     if( stddev != null ) {
       sb.append( " stddev:").append(stddev);
     }
-    if( percentiles != null ) {
-      sb.append( " percentiles:").append(percentiles);
-    }
-    
     sb.append( " }" );
     return sb.toString();
   }
@@ -169,7 +155,7 @@ public class FieldStatsInfo implements Serializable {
   public Object getSum() {
     return sum;
   }
-     
+
   public Long getCount() {
     return count;
   }
@@ -202,11 +188,4 @@ public class FieldStatsInfo implements Serializable {
     return facets;
   }
   
-  /**
-   * The percentiles requested if any, otherwise null.  If non-null then the
-   * iteration order will match the order the percentiles were originally specified in.
-   */
-  public Map<Double, Double> getPercentiles() {
-    return percentiles;
-  }
 }

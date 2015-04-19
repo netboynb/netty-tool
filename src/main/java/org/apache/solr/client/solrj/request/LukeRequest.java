@@ -19,23 +19,26 @@ package org.apache.solr.client.solrj.request;
 
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrRequest;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.LukeResponse;
 import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.ContentStream;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 
  *
  * @since solr 1.3
  */
-public class LukeRequest extends SolrRequest<LukeResponse> {
-
+public class LukeRequest extends SolrRequest
+{
   private List<String> fields;
   private int numTerms = -1;
   private boolean showSchema = false;
@@ -97,11 +100,6 @@ public class LukeRequest extends SolrRequest<LukeResponse> {
   }
 
   @Override
-  protected LukeResponse createResponse(SolrClient client) {
-    return new LukeResponse();
-  }
-
-  @Override
   public SolrParams getParams() {
     ModifiableSolrParams params = new ModifiableSolrParams();
     if( fields != null && fields.size() > 0 ) {
@@ -116,5 +114,15 @@ public class LukeRequest extends SolrRequest<LukeResponse> {
     return params;
   }
 
+  @Override
+  public LukeResponse process( SolrClient client ) throws SolrServerException, IOException
+  {
+    long startTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    LukeResponse res = new LukeResponse();
+    res.setResponse(client.request(this));
+    long endTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    res.setElapsedTime(endTime - startTime);
+    return res;
+  }
 }
 

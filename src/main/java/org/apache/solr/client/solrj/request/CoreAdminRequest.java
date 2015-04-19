@@ -17,11 +17,10 @@
 
 package org.apache.solr.client.solrj.request;
 
-import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrRequest;
+import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.CoreAdminResponse;
-import org.apache.solr.common.cloud.Replica;
 import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.common.params.CoreAdminParams;
 import org.apache.solr.common.params.CoreAdminParams.CoreAdminAction;
@@ -33,14 +32,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class is experimental and subject to change.
  *
  * @since solr 1.3
  */
-public class CoreAdminRequest extends SolrRequest<CoreAdminResponse> {
-
+public class CoreAdminRequest extends SolrRequest
+{
   protected String core = null;
   protected String other = null;
   protected boolean isIndexInfoNeeded = true;
@@ -48,7 +48,6 @@ public class CoreAdminRequest extends SolrRequest<CoreAdminResponse> {
   
   //a create core request
   public static class Create extends CoreAdminRequest {
-
     protected String instanceDir;
     protected String configName = null;
     protected String schemaName = null;
@@ -165,7 +164,7 @@ public class CoreAdminRequest extends SolrRequest<CoreAdminResponse> {
   public static class WaitForState extends CoreAdminRequest {
     protected String nodeName;
     protected String coreNodeName;
-    protected Replica.State state;
+    protected String state;
     protected Boolean checkLive;
     protected Boolean onlyIfLeader;
     protected Boolean onlyIfLeaderActive;
@@ -190,11 +189,11 @@ public class CoreAdminRequest extends SolrRequest<CoreAdminResponse> {
       this.coreNodeName = coreNodeName;
     }
 
-    public Replica.State getState() {
+    public String getState() {
       return state;
     }
 
-    public void setState(Replica.State state) {
+    public void setState(String state) {
       this.state = state;
     }
 
@@ -237,7 +236,7 @@ public class CoreAdminRequest extends SolrRequest<CoreAdminResponse> {
       }
       
       if (state != null) {
-        params.set(ZkStateReader.STATE_PROP, state.toString());
+        params.set( "state", state);
       }
       
       if (checkLive != null) {
@@ -504,8 +503,14 @@ public class CoreAdminRequest extends SolrRequest<CoreAdminResponse> {
   }
 
   @Override
-  protected CoreAdminResponse createResponse(SolrClient client) {
-    return new CoreAdminResponse();
+  public CoreAdminResponse process(SolrClient client) throws SolrServerException, IOException
+  {
+    long startTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    CoreAdminResponse res = new CoreAdminResponse();
+    res.setResponse(client.request(this));
+    long endTime = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+    res.setElapsedTime(endTime - startTime);
+    return res;
   }
 
   //---------------------------------------------------------------------------------------

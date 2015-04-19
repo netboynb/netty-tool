@@ -41,8 +41,8 @@ public class ClusterStateUtil {
    *          how long to wait before giving up
    * @return false if timed out
    */
-  public static boolean waitForAllActiveAndLiveReplicas(ZkStateReader zkStateReader, int timeoutInMs) {
-    return waitForAllActiveAndLiveReplicas(zkStateReader, null, timeoutInMs);
+  public static boolean waitForAllActiveAndLive(ZkStateReader zkStateReader, int timeoutInMs) {
+    return waitForAllActiveAndLive(zkStateReader, null, timeoutInMs);
   }
   
   /**
@@ -55,12 +55,12 @@ public class ClusterStateUtil {
    *          how long to wait before giving up
    * @return false if timed out
    */
-  public static boolean waitForAllActiveAndLiveReplicas(ZkStateReader zkStateReader, String collection,
+  public static boolean waitForAllActiveAndLive(ZkStateReader zkStateReader, String collection,
       int timeoutInMs) {
     long timeout = System.nanoTime()
         + TimeUnit.NANOSECONDS.convert(timeoutInMs, TimeUnit.MILLISECONDS);
     boolean success = false;
-    while (!success && System.nanoTime() < timeout) {
+    while (System.nanoTime() < timeout) {
       success = true;
       ClusterState clusterState = zkStateReader.getClusterState();
       if (clusterState != null) {
@@ -75,13 +75,14 @@ public class ClusterStateUtil {
           Collection<Slice> slices = docCollection.getSlices();
           for (Slice slice : slices) {
             // only look at active shards
-            if (slice.getState() == Slice.State.ACTIVE) {
+            if (slice.getState().equals(Slice.ACTIVE)) {
               Collection<Replica> replicas = slice.getReplicas();
               for (Replica replica : replicas) {
                 // on a live node?
-                final boolean live = clusterState.liveNodesContain(replica.getNodeName());
-                final boolean isActive = replica.getState() == Replica.State.ACTIVE;
-                if (!live || !isActive) {
+                boolean live = clusterState.liveNodesContain(replica
+                    .getNodeName());
+                String state = replica.getStr(ZkStateReader.STATE_PROP);
+                if (!live || !state.equals(ZkStateReader.ACTIVE)) {
                   // fail
                   success = false;
                 }
@@ -119,7 +120,7 @@ public class ClusterStateUtil {
    *          how long to wait before giving up
    * @return false if timed out
    */
-  public static boolean waitToSeeLiveReplica(ZkStateReader zkStateReader,
+  public static boolean waitToSeeLive(ZkStateReader zkStateReader,
       String collection, String coreNodeName, String baseUrl,
       int timeoutInMs) {
     long timeout = System.nanoTime()
@@ -134,7 +135,7 @@ public class ClusterStateUtil {
         Collection<Slice> slices = docCollection.getSlices();
         for (Slice slice : slices) {
           // only look at active shards
-          if (slice.getState() == Slice.State.ACTIVE) {
+          if (slice.getState().equals(Slice.ACTIVE)) {
             Collection<Replica> replicas = slice.getReplicas();
             for (Replica replica : replicas) {
               // on a live node?
@@ -162,17 +163,17 @@ public class ClusterStateUtil {
     return false;
   }
   
-  public static boolean waitForAllReplicasNotLive(ZkStateReader zkStateReader, int timeoutInMs) {
-    return waitForAllReplicasNotLive(zkStateReader, null, timeoutInMs);
+  public static boolean waitForAllNotLive(ZkStateReader zkStateReader, int timeoutInMs) {
+    return waitForAllNotLive(zkStateReader, null, timeoutInMs);
   }
   
 
-  public static boolean waitForAllReplicasNotLive(ZkStateReader zkStateReader,
+  public static boolean waitForAllNotLive(ZkStateReader zkStateReader,
       String collection, int timeoutInMs) {
     long timeout = System.nanoTime()
         + TimeUnit.NANOSECONDS.convert(timeoutInMs, TimeUnit.MILLISECONDS);
     boolean success = false;
-    while (!success && System.nanoTime() < timeout) {
+    while (System.nanoTime() < timeout) {
       success = true;
       ClusterState clusterState = zkStateReader.getClusterState();
       if (clusterState != null) {
@@ -187,7 +188,7 @@ public class ClusterStateUtil {
           Collection<Slice> slices = docCollection.getSlices();
           for (Slice slice : slices) {
             // only look at active shards
-            if (slice.getState() == Slice.State.ACTIVE) {
+            if (slice.getState().equals(Slice.ACTIVE)) {
               Collection<Replica> replicas = slice.getReplicas();
               for (Replica replica : replicas) {
                 // on a live node?
@@ -210,44 +211,6 @@ public class ClusterStateUtil {
           }
         }
       }
-    }
-    
-    return success;
-  }
-  
-  public static int getLiveAndActiveReplicaCount(ZkStateReader zkStateReader, String collection) {
-    Collection<Slice> slices;
-    slices = zkStateReader.getClusterState().getActiveSlices(collection);
-    int liveAndActive = 0;
-    for (Slice slice : slices) {
-      for (Replica replica : slice.getReplicas()) {
-        boolean live = zkStateReader.getClusterState().liveNodesContain(replica.getNodeName());
-        boolean active = replica.getState() == Replica.State.ACTIVE;
-        if (live && active) {
-          liveAndActive++;
-        }
-      }
-    }
-    return liveAndActive;
-  }
-  
-  public static boolean waitForLiveAndActiveReplicaCount(ZkStateReader zkStateReader,
-      String collection, int replicaCount, int timeoutInMs) {
-    long timeout = System.nanoTime()
-        + TimeUnit.NANOSECONDS.convert(timeoutInMs, TimeUnit.MILLISECONDS);
-    boolean success = false;
-    while (!success && System.nanoTime() < timeout) {
-      success = getLiveAndActiveReplicaCount(zkStateReader, collection) == replicaCount;
-      
-      if (!success) {
-        try {
-          Thread.sleep(TIMEOUT_POLL_MS);
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-          throw new SolrException(ErrorCode.SERVER_ERROR, "Interrupted");
-        }
-      }
-      
     }
     
     return success;

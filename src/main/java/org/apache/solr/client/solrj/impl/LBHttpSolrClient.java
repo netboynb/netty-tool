@@ -27,7 +27,6 @@ import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SolrjNamedThreadFactory;
 import org.apache.solr.common.SolrException;
-import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -52,11 +51,11 @@ import java.util.*;
  * {@link CloudSolrClient}, but this class may be used
  * for updates because the server will forward them to the appropriate leader.
  *
- * <p>
+ * <p/>
  * It offers automatic failover when a server goes down and it detects when the server comes back up.
- * <p>
+ * <p/>
  * Load balancing is done using a simple round-robin on the list of servers.
- * <p>
+ * <p/>
  * If a request to a server fails by an IOException due to a connection timeout or read timeout then the host is taken
  * off the list of live servers and moved to a 'dead server list' and the request is resent to the next live server.
  * This process is continued till it tries all the live servers. If at least one server is alive, the request succeeds,
@@ -69,8 +68,8 @@ import java.util.*;
  * </pre></blockquote>
  * This detects if a dead server comes alive automatically. The check is done in fixed intervals in a dedicated thread.
  * This interval can be set using {@link #setAliveCheckInterval} , the default is set to one minute.
- * <p>
- * <b>When to use this?</b><br> This can be used as a software load balancer when you do not wish to setup an external
+ * <p/>
+ * <b>When to use this?</b><br/> This can be used as a software load balancer when you do not wish to setup an external
  * load balancer. Alternatives to this code are to use
  * a dedicated hardware load balancer or using Apache httpd with mod_proxy_balancer as a load balancer. See <a
  * href="http://en.wikipedia.org/wiki/Load_balancing_(computing)">Load balancing on Wikipedia</a>
@@ -321,16 +320,11 @@ public class LBHttpSolrClient extends SolrClient {
         continue;
       }
       rsp.server = serverStr;
-      try {
-        MDC.put("LBHttpSolrClient.url", serverStr);
-        HttpSolrClient client = makeSolrClient(serverStr);
+      HttpSolrClient client = makeSolrClient(serverStr);
 
-        ex = doRequest(client, req, rsp, isUpdate, false, null);
-        if (ex == null) {
-          return rsp; // SUCCESS
-        }
-      } finally {
-        MDC.remove("LBHttpSolrClient.url");
+      ex = doRequest(client, req, rsp, isUpdate, false, null);
+      if (ex == null) {
+        return rsp; // SUCCESS
       }
     }
 
@@ -373,7 +367,7 @@ public class LBHttpSolrClient extends SolrClient {
       boolean isZombie, String zombieKey) throws SolrServerException, IOException {
     Exception ex = null;
     try {
-      rsp.rsp = client.request(req.getRequest(), (String) null);
+      rsp.rsp = client.request(req.getRequest());
       if (isZombie) {
         zombieServers.remove(zombieKey);
       }
@@ -475,12 +469,6 @@ public class LBHttpSolrClient extends SolrClient {
   }
 
   @Override
-  public void close() {
-    shutdown();
-  }
-
-  @Override
-  @Deprecated
   public void shutdown() {
     if (aliveCheckExecutor != null) {
       aliveCheckExecutor.shutdownNow();
@@ -503,7 +491,7 @@ public class LBHttpSolrClient extends SolrClient {
    * @throws IOException If there is a low-level I/O error.
    */
   @Override
-  public NamedList<Object> request(final SolrRequest request, String collection)
+  public NamedList<Object> request(final SolrRequest request)
           throws SolrServerException, IOException {
     Exception ex = null;
     ServerWrapper[] serverList = aliveServerList;
@@ -523,7 +511,7 @@ public class LBHttpSolrClient extends SolrClient {
       wrapper.lastUsed = System.currentTimeMillis();
 
       try {
-        return wrapper.client.request(request, collection);
+        return wrapper.client.request(request);
       } catch (SolrException e) {
         // Server is alive but the request was malformed or invalid
         throw e;
@@ -549,7 +537,7 @@ public class LBHttpSolrClient extends SolrClient {
       
       if (wrapper.standard==false || justFailed!=null && justFailed.containsKey(wrapper.getKey())) continue;
       try {
-        NamedList<Object> rsp = wrapper.client.request(request, collection);
+        NamedList<Object> rsp = wrapper.client.request(request);
         // remove from zombie list *before* adding to alive to avoid a race that could lose a server
         zombieServers.remove(wrapper.getKey());
         addToAlive(wrapper);

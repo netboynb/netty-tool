@@ -17,6 +17,19 @@
 
 package org.apache.solr.client.solrj.request;
 
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.LinkedHashMap;
+
 import org.apache.solr.client.solrj.impl.LBHttpSolrClient;
 import org.apache.solr.client.solrj.util.ClientUtils;
 import org.apache.solr.common.SolrInputDocument;
@@ -27,30 +40,15 @@ import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.util.ContentStream;
 import org.apache.solr.common.util.XML;
 
-import java.io.IOException;
-import java.io.StringWriter;
-import java.io.Writer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
 /**
  * 
  * 
  * @since solr 1.3
  */
 public class UpdateRequest extends AbstractUpdateRequest {
-
   public static final String REPFACT = "rf";
   public static final String MIN_REPFACT = "min_rf";
   public static final String VER = "ver";
-  public static final String ROUTE = "_route_";
   public static final String OVERWRITE = "ow";
   public static final String COMMIT_WITHIN = "cw";
   private Map<SolrInputDocument,Map<String,Object>> documents = null;
@@ -134,25 +132,7 @@ public class UpdateRequest extends AbstractUpdateRequest {
     deleteById.put(id, null);
     return this;
   }
-
-  public UpdateRequest deleteById(String id, String route) {
-    return deleteById(id, route, null);
-  }
-
-  public UpdateRequest deleteById(String id, String route, Long version) {
-    if (deleteById == null) {
-      deleteById = new LinkedHashMap<>();
-    }
-    Map<String, Object> params = (route == null && version == null) ? null : new HashMap<String, Object>(1);
-    if (version != null)
-      params.put(VER, version);
-    if (route != null)
-      params.put(ROUTE, route);
-    deleteById.put(id, params);
-    return this;
-  }
-
-
+  
   public UpdateRequest deleteById(List<String> ids) {
     if (deleteById == null) {
       deleteById = new LinkedHashMap<>();
@@ -166,7 +146,13 @@ public class UpdateRequest extends AbstractUpdateRequest {
   }
   
   public UpdateRequest deleteById(String id, Long version) {
-    return deleteById(id, null, version);
+    if (deleteById == null) {
+      deleteById = new LinkedHashMap<>();
+    }
+    Map<String,Object> params = new HashMap<>(1);
+    params.put(VER, version);
+    deleteById.put(id, params);
+    return this;
   }
   
   public UpdateRequest deleteByQuery(String q) {
@@ -204,7 +190,7 @@ public class UpdateRequest extends AbstractUpdateRequest {
           return null;
         }
         Slice slice = router.getTargetSlice(id
-            .toString(), doc, null, null, col);
+            .toString(), doc, null, col);
         if (slice == null) {
           return null;
         }
@@ -251,7 +237,7 @@ public class UpdateRequest extends AbstractUpdateRequest {
         if (map != null) {
           version = (Long) map.get(VER);
         }
-        Slice slice = router.getTargetSlice(deleteId, null, null, null, col);
+        Slice slice = router.getTargetSlice(deleteId, null, null, col);
         if (slice == null) {
           return null;
         }
@@ -398,13 +384,8 @@ public class UpdateRequest extends AbstractUpdateRequest {
           Map<String,Object> map = entry.getValue();
           if (map != null) {
             Long version = (Long) map.get(VER);
-            String route = (String)map.get(ROUTE);
             if (version != null) {
               writer.append(" version=\"" + version + "\"");
-            }
-            
-            if (route != null) {
-              writer.append(" _route_=\"" + route + "\"");
             }
           }
           writer.append(">");
